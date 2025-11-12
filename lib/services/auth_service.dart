@@ -51,6 +51,46 @@ class AuthService {
     }
   }
 
+  /// Send password reset email
+  Future<void> sendPasswordResetEmail({required String email}) async {
+    try {
+      await _auth.sendPasswordResetEmail(email: email);
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw 'Failed to send password reset email. Please try again.';
+    }
+  }
+
+  /// Confirm password reset with code from email
+  Future<void> confirmPasswordReset({
+    required String code,
+    required String newPassword,
+  }) async {
+    try {
+      await _auth.confirmPasswordReset(
+        code: code,
+        newPassword: newPassword,
+      );
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw 'Failed to reset password. Please try again.';
+    }
+  }
+
+  /// Verify password reset code
+  Future<String> verifyPasswordResetCode({required String code}) async {
+    try {
+      final email = await _auth.verifyPasswordResetCode(code);
+      return email;
+    } on FirebaseAuthException catch (e) {
+      throw _handleAuthException(e);
+    } catch (e) {
+      throw 'Invalid or expired reset code.';
+    }
+  }
+
   /// Handle Firebase Auth exceptions and return user-friendly messages
   String _handleAuthException(FirebaseAuthException e) {
     switch (e.code) {
@@ -74,6 +114,10 @@ class AuthService {
         return 'Invalid credentials. Please check your email and password.';
       case 'network-request-failed':
         return 'Network error. Please check your connection.';
+      case 'expired-action-code':
+        return 'This reset link has expired. Please request a new one.';
+      case 'invalid-action-code':
+        return 'This reset link is invalid. Please request a new one.';
       default:
         return e.message ?? 'Authentication failed. Please try again.';
     }
