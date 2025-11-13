@@ -1,14 +1,22 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import 'sign_in_page.dart';
+import 'dashboard_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
+  
 
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
     final user = authService.currentUser;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      Navigator.of(context).pushReplacement(
+        MaterialPageRoute(builder: (context) => const DashboardPage()),
+      );
+    });
 
     return Scaffold(
       appBar: AppBar(
