@@ -1,59 +1,38 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import 'main_navigation.dart';
 import 'sign_in_page.dart';
-import 'dashboard_page.dart';
 
 class HomePage extends StatelessWidget {
   const HomePage({super.key});
-  
 
   @override
   Widget build(BuildContext context) {
     final authService = AuthService();
-    final user = authService.currentUser;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      Navigator.of(context).pushReplacement(
-        MaterialPageRoute(builder: (context) => const DashboardPage()),
-      );
-    });
+    return StreamBuilder(
+      stream: authService.authStateChanges,
+      builder: (context, snapshot) {
+        // Loading state
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            backgroundColor: Color(0xFFD4E8E4),
+            body: Center(
+              child: CircularProgressIndicator(
+                valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2D9B8E)),
+              ),
+            ),
+          );
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Home'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.logout),
-            onPressed: () async {
-              await authService.signOut();
-              if (!context.mounted) return;
-              Navigator.of(context).pushReplacement(
-                MaterialPageRoute(builder: (context) => const SignInPage()),
-              );
-            },
-          ),
-        ],
-      ),
-      body: Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(Icons.check_circle, size: 80, color: Colors.green),
-            const SizedBox(height: 24),
-            const Text(
-              'Welcome!',
-              style: TextStyle(fontSize: 32, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 16),
-            Text(
-              user?.email ?? 'No email',
-              style: const TextStyle(fontSize: 18, color: Colors.grey),
-            ),
-            const SizedBox(height: 32),
-            const Text('You are successfully signed in!'),
-          ],
-        ),
-      ),
+        // User logged in → Show MainNavigation
+        if (snapshot.hasData && snapshot.data != null) {
+          return const MainNavigation();
+        }
+
+        // User not logged in → Show SignInPage
+        return const SignInPage();
+      },
     );
   }
 }

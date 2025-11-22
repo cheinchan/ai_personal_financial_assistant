@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
-import 'screens/sign_in_page.dart';
+import 'screens/home_page.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -19,10 +19,13 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'AI Financial Assistant',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
+        primaryColor: const Color(0xFF2D9B8E),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF2D9B8E),
+        ),
         useMaterial3: true,
       ),
-      home: const SignInPage(),
+      home: const HomePage(), // ← This checks auth automatically!
       debugShowCheckedModeBanner: false,
     );
   }

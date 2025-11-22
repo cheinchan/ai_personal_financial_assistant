@@ -229,7 +229,6 @@ class _AdvicePageState extends State<AdvicePage> {
           ),
         ),
       ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
     );
   }
 
@@ -607,47 +606,6 @@ class _AdvicePageState extends State<AdvicePage> {
                   ),
                 ),
               ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.grid_view_rounded, 'Dashboard', false,
-                  onTap: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const DashboardPage()),
-                );
-              }),
-              _buildNavItem(Icons.bar_chart_rounded, 'Budget', false),
-              _buildNavItem(Icons.add_circle, '', false, isCenter: true, onTap: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (context) => const AddTransactionPage(initialTab: 1),
-                  ),
-                );
-              }),
-              _buildNavItem(Icons.people_outline, 'Advices', true),
-              _buildNavItem(Icons.person_outline, 'Profile', false),
             ],
           ),
         ),
