@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
-import '../services/firestore_service.dart';
 import 'sign_in_page.dart';
 import 'edit_profile_page.dart';
 import 'change_password_page.dart';
@@ -15,7 +14,6 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _authService = AuthService();
-  final _firestoreService = FirestoreService();
 
   @override
   Widget build(BuildContext context) {
@@ -34,14 +32,6 @@ class _ProfilePageState extends State<ProfilePage> {
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.settings, color: Colors.white),
-            onPressed: () {
-              _showSettingsDialog();
-            },
-          ),
-        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -51,14 +41,14 @@ class _ProfilePageState extends State<ProfilePage> {
 
             const SizedBox(height: 20),
 
-            // Account Section
+            // Profile Settings
             _buildSection(
-              'Account',
+              'Profile Settings',
               [
                 _buildMenuItem(
                   Icons.person_outline,
-                  'Personal Information',
-                  'Update your personal details',
+                  'Edit Profile',
+                  'Update your personal information and preferences',
                   () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -68,9 +58,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 _buildMenuItem(
-                  Icons.security,
-                  'Security',
-                  'Password and authentication',
+                  Icons.lock_outline,
+                  'Change Password',
+                  'Securely set a new password',
                   () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -80,59 +70,9 @@ class _ProfilePageState extends State<ProfilePage> {
                   },
                 ),
                 _buildMenuItem(
-                  Icons.notifications_outlined,
-                  'Notifications',
-                  'Manage notification preferences',
-                  () => _showComingSoon('Notification Settings'),
-                ),
-              ],
-            ),
-
-            // Financial Section
-            _buildSection(
-              'Financial',
-              [
-                _buildMenuItem(
-                  Icons.account_balance_wallet_outlined,
-                  'Payment Methods',
-                  'Manage cards and accounts',
-                  () => _showComingSoon('Payment Methods'),
-                ),
-                _buildMenuItem(
-                  Icons.receipt_long_outlined,
-                  'Transaction History',
-                  'View all transactions',
-                  () => _showComingSoon('Transaction History'),
-                ),
-                _buildMenuItem(
-                  Icons.file_download_outlined,
-                  'Export Data',
-                  'Download your financial data',
-                  () => _showComingSoon('Export Data'),
-                ),
-              ],
-            ),
-
-            // App Section
-            _buildSection(
-              'App',
-              [
-                _buildMenuItem(
-                  Icons.color_lens_outlined,
-                  'Appearance',
-                  'Theme and display settings',
-                  () => _showComingSoon('Appearance Settings'),
-                ),
-                _buildMenuItem(
-                  Icons.language_outlined,
-                  'Language',
-                  'English (US)',
-                  () => _showComingSoon('Language Settings'),
-                ),
-                _buildMenuItem(
                   Icons.help_outline,
-                  'Help & Support',
-                  'FAQs and contact support',
+                  'Help',
+                  'Quick start, budgets, goals, assistant, reports, troubleshooting',
                   () {
                     Navigator.of(context).push(
                       MaterialPageRoute(
@@ -140,12 +80,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     );
                   },
-                ),
-                _buildMenuItem(
-                  Icons.info_outline,
-                  'About',
-                  'Version 1.0.0',
-                  () => _showAboutDialog(),
                 ),
               ],
             ),
@@ -171,7 +105,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       Icon(Icons.logout, color: Colors.white),
                       SizedBox(width: 8),
                       Text(
-                        'Logout',
+                        'Log out',
                         style: TextStyle(
                           fontSize: 16,
                           fontWeight: FontWeight.w600,
@@ -358,129 +292,6 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
-  void _showComingSoon(String feature) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: Row(
-          children: [
-            const Icon(Icons.info_outline, color: Color(0xFF2D9B8E)),
-            const SizedBox(width: 12),
-            Text(feature),
-          ],
-        ),
-        content: const Text(
-          'This feature is coming soon! Stay tuned for updates.',
-          style: TextStyle(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'OK',
-              style: TextStyle(
-                color: Color(0xFF2D9B8E),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showAboutDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.info_outline, color: Color(0xFF2D9B8E)),
-            SizedBox(width: 12),
-            Text('About'),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'AI Personal Financial Assistant',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            SizedBox(height: 8),
-            Text('Version 1.0.0'),
-            SizedBox(height: 16),
-            Text(
-              'A comprehensive financial management app powered by AI to help you track expenses, set goals, and make better financial decisions.',
-              style: TextStyle(fontSize: 14, height: 1.5),
-            ),
-            SizedBox(height: 16),
-            Text(
-              '© 2024 All Rights Reserved',
-              style: TextStyle(fontSize: 12, color: Colors.grey),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'Close',
-              style: TextStyle(
-                color: Color(0xFF2D9B8E),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  void _showSettingsDialog() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-        ),
-        title: const Row(
-          children: [
-            Icon(Icons.settings, color: Color(0xFF2D9B8E)),
-            SizedBox(width: 12),
-            Text('Settings'),
-          ],
-        ),
-        content: const Text(
-          'Advanced settings panel coming soon!',
-          style: TextStyle(fontSize: 15),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text(
-              'OK',
-              style: TextStyle(
-                color: Color(0xFF2D9B8E),
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
   Future<void> _handleLogout() async {
     final confirm = await showDialog<bool>(
       context: context,
@@ -488,8 +299,8 @@ class _ProfilePageState extends State<ProfilePage> {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(16),
         ),
-        title: const Text('Logout'),
-        content: const Text('Are you sure you want to logout?'),
+        title: const Text('Log out'),
+        content: const Text('Are you sure you want to log out of your account? This will end your current session on this device.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
@@ -501,7 +312,7 @@ class _ProfilePageState extends State<ProfilePage> {
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
             child: const Text(
-              'Logout',
+              'Log out',
               style: TextStyle(
                 color: Colors.red,
                 fontWeight: FontWeight.w600,

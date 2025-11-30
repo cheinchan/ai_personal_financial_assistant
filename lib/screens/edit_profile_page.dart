@@ -11,13 +11,13 @@ class EditProfilePage extends StatefulWidget {
 class _EditProfilePageState extends State<EditProfilePage> {
   final _formKey = GlobalKey<FormState>();
   final _authService = AuthService();
-  
+
   // Controllers
   final _firstNameController = TextEditingController();
   final _lastNameController = TextEditingController();
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
-  
+
   bool _isLoading = false;
   String _currency = 'MYR';
   bool _notificationsEnabled = true;
@@ -35,7 +35,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
     if (user != null) {
       _emailController.text = user.email ?? '';
     }
-    
+
     // TODO: Load other user data from Firestore
     // For now, using placeholder data
     _firstNameController.text = '';
@@ -193,7 +193,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
                     label: 'Currency',
                     icon: Icons.attach_money,
                     value: _currency,
-                    items: ['MYR', 'USD', 'EUR', 'GBP', 'SGD'],
+                    items: ['MYR'],
                     onChanged: (value) {
                       setState(() => _currency = value!);
                     },

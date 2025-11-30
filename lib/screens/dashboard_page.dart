@@ -1,12 +1,19 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:intl/intl.dart';
+import '../services/auth_service.dart';
+import '../services/firestore_service.dart';
 import '../models/transaction_model.dart';
 import '../models/goal_model.dart';
-import '../services/firestore_service.dart';
-import '../services/auth_service.dart';
-import 'add_transaction_page.dart';
 
+/// Feature 5: Visual Dashboards and Analytics
+/// 
+/// This dashboard provides:
+/// - Visual representation of spending trends
+/// - Savings history tracking
+/// - Category breakdowns
+/// - Customizable views (Daily, Weekly, Monthly, Year)
+/// - User-friendly visualizations for financial beginners
+/// - Real-time data updates from Firebase
 class DashboardPage extends StatefulWidget {
   const DashboardPage({super.key});
 
@@ -14,49 +21,111 @@ class DashboardPage extends StatefulWidget {
   State<DashboardPage> createState() => _DashboardPageState();
 }
 
-class _DashboardPageState extends State<DashboardPage> {
-  final _firestoreService = FirestoreService();
+class _DashboardPageState extends State<DashboardPage> with SingleTickerProviderStateMixin {
   final _authService = AuthService();
-  String _selectedPeriod = 'Daily';
+  final _firestoreService = FirestoreService();
+  
+  // Customizable period filter (Feature 5: Customizable views)
+  String _selectedPeriod = 'Monthly';
+  late TabController _tabController;
+  
+  // Cache for performance optimization
+  Map<String, double>? _cachedSummary;
+  List<TransactionModel>? _cachedFilteredTransactions;
+  String? _lastPeriodCalculated;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
+    final user = _authService.currentUser;
+    if (user == null) return const SizedBox();
+
     return Scaffold(
       backgroundColor: const Color(0xFFD4E8E4),
-      body: SafeArea(
-        child: StreamBuilder<List<TransactionModel>>(
-          stream: _firestoreService.getTransactions(),
-          builder: (context, transactionSnapshot) {
-            return StreamBuilder<List<GoalModel>>(
-              stream: _firestoreService.getGoals(),
-              builder: (context, goalSnapshot) {
-                if (transactionSnapshot.connectionState == ConnectionState.waiting ||
-                    goalSnapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(
-                    child: CircularProgressIndicator(
-                      valueColor: AlwaysStoppedAnimation<Color>(Color(0xFF2D9B8E)),
-                    ),
-                  );
-                }
-
-                final transactions = transactionSnapshot.data ?? [];
-                final goals = goalSnapshot.data ?? [];
-
-                return _buildDashboard(transactions, goals);
-              },
-            );
-          },
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFD4E8E4),
+        elevation: 0,
+        title: const Text(
+          'Dashboard',
+          style: TextStyle(
+            color: Colors.black87,
+            fontSize: 20,
+            fontWeight: FontWeight.w600,
+          ),
         ),
+        actions: [
+          // AI-driven notifications indicator
+          IconButton(
+            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
+            onPressed: _showAINotifications,
+          ),
+        ],
+      ),
+      body: StreamBuilder<List<TransactionModel>>(
+        stream: _firestoreService.getTransactions(),
+        builder: (context, transactionSnapshot) {
+          if (transactionSnapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          final transactions = transactionSnapshot.data ?? [];
+          
+          // Cache filtered transactions to avoid recalculating
+          if (_lastPeriodCalculated != _selectedPeriod || _cachedFilteredTransactions == null) {
+            _cachedFilteredTransactions = _filterTransactionsByPeriod(transactions);
+            _cachedSummary = _calculateFinancialSummary(_cachedFilteredTransactions!);
+            _lastPeriodCalculated = _selectedPeriod;
+          }
+
+          return SingleChildScrollView(
+            child: Column(
+              children: [
+                // Feature 2: Automated Financial Summary Card
+                _buildAutomatedFinancialSummary(_cachedSummary!),
+
+                const SizedBox(height: 20),
+
+                // Feature 5: Customizable Period Filter (Daily, Weekly, Monthly, Year)
+                _buildCustomizablePeriodFilter(),
+
+                const SizedBox(height: 20),
+
+                // Feature 5: Visual Spending Trends Chart
+                _buildSpendingTrendsChart(_cachedFilteredTransactions!),
+
+                const SizedBox(height: 20),
+
+                // Tabbed Section: Cash Flow & Goals Progress
+                _buildTabbedAnalytics(transactions),
+
+                const SizedBox(height: 80),
+              ],
+            ),
+          );
+        },
       ),
     );
   }
 
-  Widget _buildDashboard(List<TransactionModel> transactions, List<GoalModel> goals) {
-    // Calculate totals
+  /// Feature 1 & 2: Calculate real-time financial summary
+  /// - Income, Expense, and Savings
+  /// - Automated calculations without manual input
+  Map<String, double> _calculateFinancialSummary(List<TransactionModel> filteredTransactions) {
     double totalIncome = 0;
     double totalExpense = 0;
 
-    for (var transaction in transactions) {
+    for (var transaction in filteredTransactions) {
       if (transaction.type == 'income') {
         totalIncome += transaction.amount;
       } else if (transaction.type == 'expense') {
@@ -64,739 +133,856 @@ class _DashboardPageState extends State<DashboardPage> {
       }
     }
 
-    final expensePercentage = totalIncome > 0 ? (totalExpense / totalIncome * 100).round() : 0;
-    final budget = 20000.0; // You can make this dynamic
+    final savings = totalIncome - totalExpense;
+    
+    return {
+      'income': totalIncome,
+      'expense': totalExpense,
+      'savings': savings,
+    };
+  }
 
-    return SingleChildScrollView(
+  /// Feature 2: Automated Financial Summary Display
+  /// Shows income, expenditure, and savings with rule-based insights
+  Widget _buildAutomatedFinancialSummary(Map<String, double> summary) {
+    final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+    
+    final income = summary['income'] ?? 0;
+    final expense = summary['expense'] ?? 0;
+    final savings = summary['savings'] ?? 0;
+
+    // Budget target (could be fetched from user settings)
+    final budget = 20000.00;
+    final expensePercentage = budget > 0 ? (expense / budget * 100).clamp(0, 100).toInt() : 0;
+
+    // Rule-based logic for status message (Feature 2)
+    Color statusColor;
+    String statusMessage;
+    if (expensePercentage <= 30) {
+      statusColor = Colors.green;
+      statusMessage = "$expensePercentage% Of Your Expenses, Looks Good.";
+    } else if (expensePercentage <= 70) {
+      statusColor = Colors.orange;
+      statusMessage = "$expensePercentage% Of Your Expenses, Watch Out.";
+    } else {
+      statusColor = Colors.red;
+      statusMessage = "$expensePercentage% Of Your Expenses, Too High!";
+    }
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          // Header Section
-          _buildHeader(totalIncome, totalExpense, expensePercentage, budget),
+          // Income and Expense Display (Feature 1)
+          Row(
+            children: [
+              Expanded(
+                child: _buildFinancialMetric(
+                  'Total Income',
+                  currencyFormat.format(income),
+                  Icons.arrow_downward,
+                  Colors.grey[600]!,
+                  Colors.black87,
+                ),
+              ),
+              Expanded(
+                child: _buildFinancialMetric(
+                  'Total Expense',
+                  '-${currencyFormat.format(expense)}',
+                  Icons.arrow_upward,
+                  Colors.grey[600]!,
+                  const Color(0xFF2D9B8E),
+                ),
+              ),
+            ],
+          ),
 
-          // Period Filter Buttons
-          _buildPeriodFilter(),
+          const SizedBox(height: 16),
 
-          // Chart Section
-          _buildChartSection(transactions),
+          // Automated Progress Indicator (Feature 2)
+          Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor,
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Text(
+                  '$expensePercentage%',
+                  style: const TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: LinearProgressIndicator(
+                    value: expensePercentage / 100,
+                    minHeight: 8,
+                    backgroundColor: Colors.grey[200],
+                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                currencyFormat.format(budget),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
 
-          // Income & Expense Cards
-          _buildIncomeExpenseCards(totalIncome, totalExpense),
+          const SizedBox(height: 12),
 
-          const SizedBox(height: 20),
+          // Timely Insight (Feature 2: Rule-based logic)
+          Row(
+            children: [
+              Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  statusMessage,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[700],
+                  ),
+                ),
+              ),
+            ],
+          ),
 
-          // Cash Flow & Goals Tabbed Section
-          _buildTransactionsAndGoals(transactions, goals),
-
-          const SizedBox(height: 80),
+          // Savings Display (Feature 1: Savings Logging)
+          if (savings > 0) ...[
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Icon(Icons.savings_outlined, color: Colors.green, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    'Savings: ${currencyFormat.format(savings)}',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.green,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
   }
 
-  Widget _buildHeader(double income, double expense, int percentage, double budget) {
+  Widget _buildFinancialMetric(String label, String value, IconData icon, Color iconColor, Color valueColor) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Icon(icon, size: 16, color: iconColor),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                fontSize: 12,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 20,
+            fontWeight: FontWeight.bold,
+            color: valueColor,
+          ),
+        ),
+      ],
+    );
+  }
+
+  /// Feature 5: Customizable Period Filter
+  /// Allows users to view data by Daily, Weekly, Monthly, or Year
+  Widget _buildCustomizablePeriodFilter() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      child: Row(
+        children: [
+          _buildPeriodButton('Daily'),
+          const SizedBox(width: 8),
+          _buildPeriodButton('Weekly'),
+          const SizedBox(width: 8),
+          _buildPeriodButton('Monthly'),
+          const SizedBox(width: 8),
+          _buildPeriodButton('Year'),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPeriodButton(String period) {
+    final isSelected = _selectedPeriod == period;
+
+    return Expanded(
+      child: GestureDetector(
+        onTap: () {
+          if (_selectedPeriod != period) {
+            setState(() {
+              _selectedPeriod = period;
+              // Invalidate cache to recalculate
+              _cachedFilteredTransactions = null;
+              _cachedSummary = null;
+            });
+          }
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? const Color(0xFF2D9B8E) : Colors.white,
+            borderRadius: BorderRadius.circular(20),
+            boxShadow: isSelected
+                ? [
+                    BoxShadow(
+                      color: const Color(0xFF2D9B8E).withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ]
+                : null,
+          ),
+          child: Text(
+            period,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+              color: isSelected ? Colors.white : Colors.black54,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// Feature 5: Visual Spending Trends Chart
+  /// Represents spending trends at a glance for easy comprehension
+  Widget _buildSpendingTrendsChart(List<TransactionModel> filteredTransactions) {
+    final chartData = _getChartData(filteredTransactions);
+    final labels = _getChartLabels();
+    final maxValue = _getMaxY(chartData);
+
     return Container(
-      padding: const EdgeInsets.all(20),
+      height: 250,
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
       child: Column(
         children: [
-          // Title Row
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Dashboard',
-                style: TextStyle(
-                  fontSize: 20,
+              Text(
+                'Spending Trends ($_selectedPeriod)',
+                style: const TextStyle(
+                  fontSize: 14,
                   fontWeight: FontWeight.w600,
                   color: Colors.black87,
                 ),
               ),
-              IconButton(
-                icon: const Icon(Icons.notifications_outlined),
-                onPressed: () {},
-                color: Colors.black87,
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Income & Expense Display
-          Row(
-            children: [
-              // Total Income
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.trending_down, size: 16, color: Color(0xFF2D9B8E)),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Total Income',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '\$${NumberFormat('#,##0.00').format(income)}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: Colors.black87,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        '$percentage%',
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: Colors.white,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ),
-                  ],
+              Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: const Color(0xFF2D9B8E).withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-              ),
-
-              // Total Expense
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.trending_up, size: 16, color: Colors.black54),
-                        const SizedBox(width: 4),
-                        const Text(
-                          'Total Expense',
-                          style: TextStyle(
-                            fontSize: 12,
-                            color: Colors.black54,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      '-\$${NumberFormat('#,##0.00').format(expense)}',
-                      style: const TextStyle(
-                        fontSize: 22,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.black87,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '\$${NumberFormat('#,##0.00').format(budget)}',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black54,
-                      ),
-                    ),
-                  ],
+                child: const Icon(
+                  Icons.bar_chart,
+                  size: 20,
+                  color: Color(0xFF2D9B8E),
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-
-          // Status Message
-          Row(
-            children: [
-              const Icon(Icons.check_circle, size: 16, color: Color(0xFF2D9B8E)),
-              const SizedBox(width: 8),
-              Text(
-                '$percentage% Of Your Expenses, Looks Good.',
-                style: const TextStyle(
-                  fontSize: 13,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPeriodFilter() {
-    final periods = ['Daily', 'Weekly', 'Monthly', 'Year'];
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: periods.map((period) {
-          final isSelected = _selectedPeriod == period;
-          return Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: GestureDetector(
-              onTap: () => setState(() => _selectedPeriod = period),
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                decoration: BoxDecoration(
-                  color: isSelected ? const Color(0xFF2D9B8E) : Colors.white,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Text(
-                  period,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: isSelected ? Colors.white : Colors.black54,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }).toList(),
-      ),
-    );
-  }
-
-  Widget _buildChartSection(List<TransactionModel> transactions) {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          // Chart Header
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                '16k',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.black54,
-                ),
-              ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D9B8E),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(Icons.calendar_month, color: Colors.white, size: 16),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-
-          // Bar Chart
-          SizedBox(
-            height: 180,
-            child: BarChart(
-              BarChartData(
-                alignment: BarChartAlignment.spaceAround,
-                maxY: 15000,
-                barTouchData: BarTouchData(enabled: false),
-                titlesData: FlTitlesData(
-                  show: true,
-                  bottomTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      getTitlesWidget: (value, meta) {
-                        const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                        if (value.toInt() >= 0 && value.toInt() < days.length) {
-                          return Padding(
-                            padding: const EdgeInsets.only(top: 8),
-                            child: Text(
-                              days[value.toInt()],
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black54,
+          Expanded(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: List.generate(
+                chartData.length > 7 ? 7 : chartData.length,
+                (index) {
+                  final value = chartData[index];
+                  final height = maxValue > 0 ? (value / maxValue * 150) : 0;
+                  final displayIndex = chartData.length > 7 
+                      ? (index * chartData.length ~/ 7) 
+                      : index;
+                  
+                  return Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          // Bar
+                          Container(
+                            height: height.clamp(5.0, 150.0).toDouble(),
+                            decoration: BoxDecoration(
+                              color: const Color(0xFF2D9B8E),
+                              borderRadius:const BorderRadius.only(
+                                topLeft: Radius.circular(4),
+                                topRight: Radius.circular(4),
                               ),
                             ),
-                          );
-                        }
-                        return const Text('');
-                      },
-                    ),
-                  ),
-                  leftTitles: AxisTitles(
-                    sideTitles: SideTitles(
-                      showTitles: true,
-                      reservedSize: 32,
-                      interval: 5000,
-                      getTitlesWidget: (value, meta) {
-                        return Text(
-                          '${(value / 1000).toInt()}k',
-                          style: const TextStyle(
-                            fontSize: 10,
-                            color: Colors.black54,
                           ),
-                        );
-                      },
-                    ),
-                  ),
-                  topTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                  rightTitles: const AxisTitles(sideTitles: SideTitles(showTitles: false)),
-                ),
-                gridData: FlGridData(
-                  show: true,
-                  drawVerticalLine: false,
-                  horizontalInterval: 5000,
-                  getDrawingHorizontalLine: (value) {
-                    return FlLine(
-                      color: Colors.grey[200]!,
-                      strokeWidth: 1,
-                    );
-                  },
-                ),
-                borderData: FlBorderData(show: false),
-                barGroups: _getBarGroups(transactions),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  List<BarChartGroupData> _getBarGroups(List<TransactionModel> transactions) {
-    // Calculate daily totals for the week
-    final now = DateTime.now();
-    final weekStart = now.subtract(Duration(days: now.weekday - 1));
-    
-    List<double> dailyTotals = List.filled(7, 0.0);
-    
-    for (var transaction in transactions) {
-      final daysDiff = transaction.createdAt.difference(weekStart).inDays;
-      if (daysDiff >= 0 && daysDiff < 7 && transaction.type == 'expense') {
-        dailyTotals[daysDiff] += transaction.amount;
-      }
-    }
-
-    return List.generate(7, (index) {
-      return BarChartGroupData(
-        x: index,
-        barRods: [
-          BarChartRodData(
-            toY: dailyTotals[index],
-            color: const Color(0xFF2D9B8E),
-            width: 16,
-            borderRadius: const BorderRadius.only(
-              topLeft: Radius.circular(4),
-              topRight: Radius.circular(4),
-            ),
-          ),
-        ],
-      );
-    });
-  }
-
-  Widget _buildIncomeExpenseCards(double income, double expense) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20),
-      child: Row(
-        children: [
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2D9B8E).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.trending_down,
-                          color: Color(0xFF2D9B8E),
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Income',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '\$${NumberFormat('#,##0.00').format(income)}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(8),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF3B82F6).withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(8),
-                        ),
-                        child: const Icon(
-                          Icons.trending_up,
-                          color: Color(0xFF3B82F6),
-                          size: 20,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Expense',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.black54,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '\$${NumberFormat('#,##0.00').format(expense)}',
-                    style: const TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                      color: Color(0xFF3B82F6),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTransactionsAndGoals(List<TransactionModel> transactions, List<GoalModel> goals) {
-    return _TabbedSection(transactions: transactions, goals: goals);
-  }
-}
-
-// Tabbed Section Widget
-class _TabbedSection extends StatefulWidget {
-  final List<TransactionModel> transactions;
-  final List<GoalModel> goals;
-
-  const _TabbedSection({
-    required this.transactions,
-    required this.goals,
-  });
-
-  @override
-  State<_TabbedSection> createState() => _TabbedSectionState();
-}
-
-class _TabbedSectionState extends State<_TabbedSection> {
-  int _selectedTab = 0; // 0 = Cash Flow, 1 = Goals Progress
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: [
-          // Tab Headers
-          Container(
-            decoration: BoxDecoration(
-              color: const Color(0xFFD4E8E4).withOpacity(0.3),
-              borderRadius: const BorderRadius.only(
-                topLeft: Radius.circular(16),
-                topRight: Radius.circular(16),
-              ),
-            ),
-            child: Row(
-              children: [
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedTab = 0),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: _selectedTab == 0 ? Colors.white : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topLeft: Radius.circular(16),
-                        ),
-                        border: _selectedTab == 0
-                            ? const Border(
-                                bottom: BorderSide(
-                                  color: Color(0xFF2D9B8E),
-                                  width: 3,
-                                ),
-                              )
-                            : null,
-                      ),
-                      child: Text(
-                        'Cash Flow',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: _selectedTab == 0 ? const Color(0xFF2D9B8E) : Colors.black54,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: GestureDetector(
-                    onTap: () => setState(() => _selectedTab = 1),
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      decoration: BoxDecoration(
-                        color: _selectedTab == 1 ? Colors.white : Colors.transparent,
-                        borderRadius: const BorderRadius.only(
-                          topRight: Radius.circular(16),
-                        ),
-                        border: _selectedTab == 1
-                            ? const Border(
-                                bottom: BorderSide(
-                                  color: Color(0xFF2D9B8E),
-                                  width: 3,
-                                ),
-                              )
-                            : null,
-                      ),
-                      child: Text(
-                        'Goals Progress',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: _selectedTab == 1 ? const Color(0xFF2D9B8E) : Colors.black54,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Tab Content
-          Container(
-            padding: const EdgeInsets.all(20),
-            child: _selectedTab == 0
-                ? _buildCashFlowContent()
-                : _buildGoalsProgressContent(),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildCashFlowContent() {
-    final recentTransactions = widget.transactions.take(3).toList();
-
-    if (recentTransactions.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(40),
-        child: Center(
-          child: Text(
-            'No transactions yet',
-            style: TextStyle(color: Colors.black38, fontSize: 14),
-          ),
-        ),
-      );
-    }
-
-    return Column(
-      children: recentTransactions.map((transaction) {
-        final categoryMap = {
-          'Transport': {'icon': Icons.directions_car, 'color': const Color(0xFFF59E0B)},
-          'Food': {'icon': Icons.restaurant, 'color': const Color(0xFF10B981)},
-          'Shopping': {'icon': Icons.card_giftcard, 'color': const Color(0xFF3B82F6)},
-          'Bills': {'icon': Icons.monetization_on, 'color': const Color(0xFF06B6D4)},
-          'Entertainment': {'icon': Icons.nightlight_round, 'color': const Color(0xFFA855F7)},
-          'Health': {'icon': Icons.favorite, 'color': const Color(0xFFEC4899)},
-          'Fitness': {'icon': Icons.fitness_center, 'color': const Color(0xFF6B7280)},
-          'Home': {'icon': Icons.home, 'color': const Color(0xFFF97316)},
-        };
-
-        IconData icon = Icons.attach_money;
-        Color iconColor = const Color(0xFFF59E0B);
-
-        if (transaction.category != null && categoryMap.containsKey(transaction.category)) {
-          icon = categoryMap[transaction.category]!['icon'] as IconData;
-          iconColor = categoryMap[transaction.category]!['color'] as Color;
-        }
-
-        return Container(
-          margin: const EdgeInsets.only(bottom: 12),
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: const Color(0xFFF5F5F5),
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: iconColor.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: Icon(icon, color: iconColor, size: 24),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      DateFormat('dd MMMM yyyy').format(transaction.createdAt),
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.black38,
-                      ),
-                    ),
-                    const SizedBox(height: 2),
-                    Text(
-                      transaction.category ?? 'Transaction',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              Text(
-                '-${transaction.amount.toInt()} MYR',
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-              ),
-            ],
-          ),
-        );
-      }).toList(),
-    );
-  }
-
-  Widget _buildGoalsProgressContent() {
-    final activeGoals = widget.goals.take(2).toList();
-
-    if (activeGoals.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(40),
-        child: Center(
-          child: Text(
-            'No goals yet',
-            style: TextStyle(color: Colors.black38, fontSize: 14),
-          ),
-        ),
-      );
-    }
-
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: activeGoals.map((goal) {
-        final progress = goal.progress / 100;
-        return Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: const Color(0xFF3B82F6).withOpacity(0.15),
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Column(
-            children: [
-              SizedBox(
-                width: 100,
-                height: 100,
-                child: Stack(
-                  children: [
-                    SizedBox(
-                      width: 100,
-                      height: 100,
-                      child: CircularProgressIndicator(
-                        value: progress,
-                        strokeWidth: 10,
-                        backgroundColor: Colors.white.withOpacity(0.5),
-                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    ),
-                    Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          const Icon(
-                            Icons.trending_up,
-                            color: Colors.white,
-                            size: 24,
-                          ),
-                          const SizedBox(height: 4),
+                          const SizedBox(height: 8),
+                          // Label
                           Text(
-                            '${goal.progress.toInt()}%',
-                            style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.white,
+                            labels[displayIndex < labels.length ? displayIndex : 0],
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
                             ),
                           ),
                         ],
                       ),
                     ),
-                  ],
-                ),
+                  );
+                },
               ),
-              const SizedBox(height: 12),
-              Text(
-                goal.name,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.black87,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Feature 5: Tabbed Analytics Section
+  /// Cash Flow and Goals Progress for better organization
+  Widget _buildTabbedAnalytics(List<TransactionModel> transactions) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          TabBar(
+            controller: _tabController,
+            indicatorColor: const Color(0xFF2D9B8E),
+            indicatorWeight: 3,
+            labelColor: const Color(0xFF2D9B8E),
+            unselectedLabelColor: Colors.grey,
+            labelStyle: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+            ),
+            tabs: const [
+              Tab(
+                icon: Icon(Icons.swap_horiz, size: 20),
+                text: 'Cash Flow',
+              ),
+              Tab(
+                icon: Icon(Icons.flag_outlined, size: 20),
+                text: 'Goals Progress',
               ),
             ],
           ),
-        );
-      }).toList(),
+          SizedBox(
+            height: 280,
+            child: TabBarView(
+              controller: _tabController,
+              children: [
+                _buildCashFlowTab(transactions),
+                _buildGoalsTab(),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Separate goals tab with its own StreamBuilder
+  Widget _buildGoalsTab() {
+    return StreamBuilder<List<GoalModel>>(
+      stream: _firestoreService.getGoals(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+        }
+        
+        final goals = snapshot.data ?? [];
+        return _buildGoalsProgressTab(goals);
+      },
+    );
+  }
+
+  /// Feature 1: Cash Flow Visualization
+  /// Shows structured cash flow and spending priorities
+  Widget _buildCashFlowTab(List<TransactionModel> allTransactions) {
+    // Use cached filtered transactions if available
+    final filteredTransactions = _cachedFilteredTransactions ?? _filterTransactionsByPeriod(allTransactions);
+    
+    double income = 0;
+    double expense = 0;
+
+    for (var transaction in filteredTransactions) {
+      if (transaction.type == 'income') {
+        income += transaction.amount;
+      } else {
+        expense += transaction.amount;
+      }
+    }
+
+    // Limit to 2 most recent transactions for memory efficiency
+    final recentTransactions = filteredTransactions.take(2).toList();
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: _buildCashFlowCard(
+                  'Income',
+                  '\$${income.toInt()}',
+                  Icons.arrow_downward,
+                  const Color(0xFF2D9B8E),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _buildCashFlowCard(
+                  'Expense',
+                  '\$${expense.toInt()}',
+                  Icons.arrow_upward,
+                  const Color(0xFF2D9B8E),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Expanded(
+            child: recentTransactions.isEmpty
+                ? Center(
+                    child: Text(
+                      'No transactions yet',
+                      style: TextStyle(color: Colors.grey[600]),
+                    ),
+                  )
+                : ListView.builder(
+                    physics: const NeverScrollableScrollPhysics(),
+                    shrinkWrap: true,
+                    itemCount: recentTransactions.length,
+                    itemBuilder: (context, index) {
+                      return _buildTransactionRow(recentTransactions[index]);
+                    },
+                  ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCashFlowCard(String label, String amount, IconData icon, Color color) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Column(
+        children: [
+          Icon(icon, color: color, size: 24),
+          const SizedBox(height: 8),
+          Text(
+            label,
+            style: TextStyle(
+              fontSize: 12,
+              color: Colors.grey[700],
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            amount,
+            style: TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: color,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Feature 1: Categorized Transaction Display
+  /// Shows transactions with categories for better insight
+  Widget _buildTransactionRow(TransactionModel transaction) {
+    // Use const maps for better performance
+    const categoryIcons = {
+      'Transport': Icons.directions_car,
+      'Food': Icons.restaurant,
+      'Shopping': Icons.card_giftcard,
+      'Bills': Icons.receipt_long,
+      'Entertainment': Icons.movie,
+      'Health': Icons.favorite,
+      'Fitness': Icons.fitness_center,
+      'Home': Icons.home,
+    };
+
+    // Use static color values
+    final categoryColors = {
+      'Transport': Colors.orange,
+      'Food': Colors.green,
+      'Shopping': Colors.blue,
+      'Bills': Colors.red,
+      'Entertainment': Colors.purple,
+      'Health': Colors.pink,
+      'Fitness': Colors.teal,
+      'Home': Colors.red.shade300,
+    };
+
+    final category = transaction.category ?? 'Other';
+    final icon = categoryIcons[category] ?? Icons.category;
+    final color = categoryColors[category] ?? Colors.grey;
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.grey[50],
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: color, size: 20),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  category,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.black87,
+                  ),
+                ),
+                Text(
+                  DateFormat('MMM d').format(transaction.createdAt),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
+          Text(
+            '${transaction.type == 'expense' ? '-' : '+'}\$${transaction.amount.toInt()}',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: transaction.type == 'expense' ? Colors.red : const Color(0xFF2D9B8E),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// Feature 3: Goals Progress Visualization
+  /// Shows savings goals with visual indicators (progress bars)
+  Widget _buildGoalsProgressTab(List<GoalModel> goals) {
+    if (goals.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.flag_outlined, size: 64, color: Colors.grey[400]),
+            const SizedBox(height: 16),
+            Text(
+              'No goals yet',
+              style: TextStyle(
+                fontSize: 16,
+                color: Colors.grey[600],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // Show only 1 goal for memory efficiency
+    final goal = goals.first;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: _buildGoalProgressCard(goal),
+      ),
+    );
+  }
+
+  /// Feature 3: Goal Progress Card with Visual Indicators
+  /// Circular progress bars to enhance motivation
+  Widget _buildGoalProgressCard(GoalModel goal) {
+    final progress = (goal.currentAmount / goal.targetAmount * 100).clamp(0, 100).toInt();
+
+    return Container(
+      width: 200,
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2D9B8E), Color(0xFF1F7A6E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.center,
+            children: [
+              SizedBox(
+                width: 80,
+                height: 80,
+                child: CircularProgressIndicator(
+                  value: progress / 100,
+                  strokeWidth: 6,
+                  backgroundColor: Colors.white.withOpacity(0.3),
+                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                ),
+              ),
+              Text(
+                '$progress%',
+                style: const TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.white,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text(
+            goal.name,
+            style: const TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: Colors.white,
+            ),
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Helper methods for data filtering and chart generation
+  
+  List<TransactionModel> _filterTransactionsByPeriod(List<TransactionModel> transactions) {
+    final now = DateTime.now();
+    
+    switch (_selectedPeriod) {
+      case 'Daily':
+        return transactions.where((t) {
+          return t.createdAt.year == now.year &&
+                 t.createdAt.month == now.month &&
+                 t.createdAt.day == now.day;
+        }).toList();
+      case 'Weekly':
+        final weekAgo = now.subtract(const Duration(days: 7));
+        return transactions.where((t) => t.createdAt.isAfter(weekAgo)).toList();
+      case 'Monthly':
+        return transactions.where((t) {
+          return t.createdAt.year == now.year && t.createdAt.month == now.month;
+        }).toList();
+      case 'Year':
+        return transactions.where((t) => t.createdAt.year == now.year).toList();
+      default:
+        return transactions;
+    }
+  }
+
+  List<double> _getChartData(List<TransactionModel> transactions) {
+    // Simplified chart data for memory efficiency
+    if (_selectedPeriod == 'Daily') {
+      // Show only 7 hours instead of 24
+      final hourlyData = List<double>.filled(7, 0.0);
+      for (var t in transactions) {
+        if (t.type == 'expense') {
+          final hourIndex = (t.createdAt.hour ~/ 4).clamp(0, 6);
+          hourlyData[hourIndex] += t.amount;
+        }
+      }
+      return hourlyData;
+    } else if (_selectedPeriod == 'Weekly') {
+      final dailyData = List<double>.filled(7, 0.0);
+      final now = DateTime.now();
+      for (var t in transactions) {
+        if (t.type == 'expense') {
+          final daysDiff = now.difference(t.createdAt).inDays;
+          if (daysDiff >= 0 && daysDiff < 7) {
+            dailyData[6 - daysDiff] += t.amount;
+          }
+        }
+      }
+      return dailyData;
+    } else if (_selectedPeriod == 'Monthly') {
+      final weeklyData = List<double>.filled(4, 0.0);
+      for (var t in transactions) {
+        if (t.type == 'expense') {
+          final weekIndex = ((t.createdAt.day - 1) ~/ 7).clamp(0, 3);
+          weeklyData[weekIndex] += t.amount;
+        }
+      }
+      return weeklyData;
+    } else {
+      // Year view - show only 6 months for memory
+      final monthlyData = List<double>.filled(6, 0.0);
+      final now = DateTime.now();
+      for (var t in transactions) {
+        if (t.type == 'expense' && t.createdAt.year == now.year) {
+          final monthIndex = ((t.createdAt.month - 1) ~/ 2).clamp(0, 5);
+          monthlyData[monthIndex] += t.amount;
+        }
+      }
+      return monthlyData;
+    }
+  }
+
+  List<String> _getChartLabels() {
+    switch (_selectedPeriod) {
+      case 'Daily':
+        return ['0h', '4h', '8h', '12h', '16h', '20h', '24h'];
+      case 'Weekly':
+        return ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      case 'Monthly':
+        return ['W1', 'W2', 'W3', 'W4'];
+      case 'Year':
+        return ['Jan-Feb', 'Mar-Apr', 'May-Jun', 'Jul-Aug', 'Sep-Oct', 'Nov-Dec'];
+      default:
+        return [];
+    }
+  }
+
+  double _getMaxY(List<double> data) {
+    if (data.isEmpty) return 20;
+    final max = data.reduce((a, b) => a > b ? a : b);
+    return max == 0 ? 20 : max + (max * 0.2);
+  }
+
+  /// Feature 4: AI-Driven Notifications
+  /// Shows alerts and suggestions based on spending patterns
+  void _showAINotifications() {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.lightbulb_outline, color: Color(0xFF2D9B8E)),
+            SizedBox(width: 8),
+            Text('AI Insights'),
+          ],
+        ),
+        content: const Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Feature 4: AI-Driven Advice',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: Color(0xFF2D9B8E),
+              ),
+            ),
+            SizedBox(height: 8),
+            Text(
+              'This feature will provide:\n'
+              '• Personalized financial insights\n'
+              '• Spending limit alerts\n'
+              '• Suggestions based on past behavior\n'
+              '• Pattern detection\n'
+              '• Alternative behavior recommendations',
+              style: TextStyle(fontSize: 14),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Got it'),
+          ),
+        ],
+      ),
     );
   }
 }

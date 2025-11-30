@@ -16,12 +16,12 @@ class _AdvicePageState extends State<AdvicePage> {
   final _geminiService = GeminiService();
   final _firestoreService = FirestoreService();
   final _questionController = TextEditingController();
-  
+
   bool _isLoadingInsights = false;
   bool _isLoadingAnswer = false;
   String? _aiInsights;
   String? _currentAnswer;
-  
+
   List<TransactionModel> _transactions = [];
   double _totalIncome = 0;
   double _totalExpenses = 0;
@@ -42,7 +42,7 @@ class _AdvicePageState extends State<AdvicePage> {
   Future<void> _loadData() async {
     try {
       final transactions = await _firestoreService.getTransactionsOnce();
-      
+
       double income = 0;
       double expenses = 0;
       Map<String, double> categories = {};
@@ -53,7 +53,8 @@ class _AdvicePageState extends State<AdvicePage> {
         } else if (transaction.type == 'expense') {
           expenses += transaction.amount;
           final category = transaction.category ?? 'Other';
-          categories[category] = (categories[category] ?? 0) + transaction.amount;
+          categories[category] =
+              (categories[category] ?? 0) + transaction.amount;
         }
       }
 
@@ -78,7 +79,8 @@ class _AdvicePageState extends State<AdvicePage> {
   Future<void> _generateInsights() async {
     if (_totalIncome == 0 && _totalExpenses == 0) {
       setState(() {
-        _aiInsights = 'Add some transactions to get personalized financial insights!';
+        _aiInsights =
+            'Add some transactions to get personalized financial insights!';
       });
       return;
     }
@@ -242,7 +244,6 @@ class _AdvicePageState extends State<AdvicePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          
           const SizedBox(height: 16),
           const Text(
             'How it Works',
@@ -253,9 +254,11 @@ class _AdvicePageState extends State<AdvicePage> {
             ),
           ),
           const SizedBox(height: 12),
-          _buildHowItWorksItem('1. AI analyzes your budget, expenses, income & goals'),
+          _buildHowItWorksItem(
+              '1. AI analyzes your budget, expenses, income & goals'),
           _buildHowItWorksItem('2. Learns your spending patterns over time'),
-          _buildHowItWorksItem('3. Predicts risks and nudges you before overspending'),
+          _buildHowItWorksItem(
+              '3. Predicts risks and nudges you before overspending'),
           const SizedBox(height: 16),
           ElevatedButton(
             onPressed: _generateInsights,
@@ -322,7 +325,7 @@ class _AdvicePageState extends State<AdvicePage> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           if (_isLoadingInsights)
             const Center(
               child: Padding(
@@ -349,24 +352,24 @@ class _AdvicePageState extends State<AdvicePage> {
                 color: Colors.grey,
               ),
             ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Category-specific insights
           if (_categoryExpenses.isNotEmpty) ...[
             const Divider(),
             const SizedBox(height: 16),
             ..._categoryExpenses.entries.take(3).map((entry) {
-              final percentage = _totalIncome > 0 
+              final percentage = _totalIncome > 0
                   ? (entry.value / _totalIncome * 100).round()
                   : 0;
               final isOverBudget = percentage > 30;
               final isWarning = percentage > 20 && percentage <= 30;
-              
+
               Color iconColor;
               IconData icon;
               String status;
-              
+
               if (isOverBudget) {
                 iconColor = const Color(0xFFEF4444);
                 icon = Icons.error_outline;
@@ -380,14 +383,15 @@ class _AdvicePageState extends State<AdvicePage> {
                 icon = Icons.check_circle_outline;
                 status = 'On track';
               }
-              
+
               return Padding(
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _buildInsightCard(
                   icon: icon,
                   iconColor: iconColor,
                   title: '$status: ${entry.key}',
-                  subtitle: 'You ${isOverBudget ? "have spent" : "are at"} $percentage% of recommended budget',
+                  subtitle:
+                      'You ${isOverBudget ? "have spent" : "are at"} $percentage% of recommended budget',
                   onTap: () => _getCategoryAdvice(entry.key, entry.value),
                 ),
               );
@@ -524,12 +528,12 @@ class _AdvicePageState extends State<AdvicePage> {
             ),
           ),
           const SizedBox(height: 16),
-          
+
           // Example questions
           _buildExampleQuestion('What to contribute to hit a goal?'),
           _buildExampleQuestion('How to stop overspending?'),
           const SizedBox(height: 16),
-          
+
           // Input field
           Row(
             children: [
@@ -569,7 +573,8 @@ class _AdvicePageState extends State<AdvicePage> {
                           height: 20,
                           child: CircularProgressIndicator(
                             strokeWidth: 2,
-                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                            valueColor:
+                                AlwaysStoppedAnimation<Color>(Colors.white),
                           ),
                         )
                       : const Icon(Icons.send, color: Colors.white, size: 20),
@@ -644,7 +649,8 @@ class _AdvicePageState extends State<AdvicePage> {
             label,
             style: TextStyle(
               fontSize: 11,
-              color: isActive ? const Color(0xFF2D9B8E) : const Color(0xFF9CA3AF),
+              color:
+                  isActive ? const Color(0xFF2D9B8E) : const Color(0xFF9CA3AF),
               fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
             ),
           ),
