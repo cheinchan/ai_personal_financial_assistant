@@ -4,6 +4,8 @@ import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/transaction_model.dart';
 import '../models/goal_model.dart';
+import 'report_page.dart';
+import 'goal_detail_page.dart';
 
 /// Feature 5: Visual Dashboards and Analytics
 /// 
@@ -88,16 +90,34 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             _lastPeriodCalculated = _selectedPeriod;
           }
 
-          return SingleChildScrollView(
-            child: Column(
-              children: [
-                // Feature 2: Automated Financial Summary Card
-                _buildAutomatedFinancialSummary(_cachedSummary!),
+          return RefreshIndicator(
+            color: const Color(0xFF2D9B8E),
+            onRefresh: () async {
+              // Clear cache to force recalculation
+              setState(() {
+                _cachedSummary = null;
+                _cachedFilteredTransactions = null;
+                _lastPeriodCalculated = null;
+              });
+              // Wait a bit for the StreamBuilder to rebuild with fresh data
+              await Future.delayed(const Duration(milliseconds: 500));
+            },
+            child: SingleChildScrollView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              child: Column(
+                children: [
+                  // Period Indicator - Show which period the totals represent
+                  _buildPeriodIndicator(),
+                  
+                  const SizedBox(height: 12),
+                  
+                  // Feature 2: Automated Financial Summary Card
+                  _buildAutomatedFinancialSummary(_cachedSummary!),
 
-                const SizedBox(height: 20),
+                  const SizedBox(height: 20),
 
-                // Feature 5: Customizable Period Filter (Daily, Weekly, Monthly, Year)
-                _buildCustomizablePeriodFilter(),
+                  // Feature 5: Customizable Period Filter (Daily, Weekly, Monthly, Year)
+                  _buildCustomizablePeriodFilter(),
 
                 const SizedBox(height: 20),
 
@@ -112,8 +132,89 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                 const SizedBox(height: 80),
               ],
             ),
+          ),
           );
         },
+      ),
+    );
+  }
+
+  /// Period Indicator - Shows which period the totals represent
+  /// Makes it user-friendly so users know "Total Income for December 2025"
+  Widget _buildPeriodIndicator() {
+    final now = DateTime.now();
+    String periodText = '';
+    String dateRangeText = '';
+
+    switch (_selectedPeriod) {
+      case 'Daily':
+        periodText = 'Today';
+        dateRangeText = DateFormat('MMM d, yyyy').format(now);
+        break;
+      case 'Weekly':
+        final weekAgo = now.subtract(const Duration(days: 7));
+        periodText = 'This Week';
+        dateRangeText = '${DateFormat('MMM d').format(weekAgo)} - ${DateFormat('MMM d, yyyy').format(now)}';
+        break;
+      case 'Monthly':
+        periodText = 'This Month';
+        dateRangeText = DateFormat('MMMM yyyy').format(now); // e.g., "December 2025"
+        break;
+      case 'Year':
+        periodText = 'This Year';
+        dateRangeText = DateFormat('yyyy').format(now); // e.g., "2025"
+        break;
+    }
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF2D9B8E),
+        borderRadius: BorderRadius.circular(12),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(
+            _selectedPeriod == 'Daily' ? Icons.today :
+            _selectedPeriod == 'Weekly' ? Icons.date_range :
+            _selectedPeriod == 'Monthly' ? Icons.calendar_month :
+            Icons.calendar_today,
+            color: Colors.white,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                periodText,
+                style: const TextStyle(
+                  fontSize: 12,
+                  color: Colors.white70,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                dateRangeText,
+                style: const TextStyle(
+                  fontSize: 16,
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -151,24 +252,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     final expense = summary['expense'] ?? 0;
     final savings = summary['savings'] ?? 0;
 
-    // Budget target (could be fetched from user settings)
-    final budget = 20000.00;
-    final expensePercentage = budget > 0 ? (expense / budget * 100).clamp(0, 100).toInt() : 0;
-
-    // Rule-based logic for status message (Feature 2)
-    Color statusColor;
-    String statusMessage;
-    if (expensePercentage <= 30) {
-      statusColor = Colors.green;
-      statusMessage = "$expensePercentage% Of Your Expenses, Looks Good.";
-    } else if (expensePercentage <= 70) {
-      statusColor = Colors.orange;
-      statusMessage = "$expensePercentage% Of Your Expenses, Watch Out.";
-    } else {
-      statusColor = Colors.red;
-      statusMessage = "$expensePercentage% Of Your Expenses, Too High!";
-    }
-
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 16),
       padding: const EdgeInsets.all(20),
@@ -204,68 +287,6 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                   Icons.arrow_upward,
                   Colors.grey[600]!,
                   const Color(0xFF2D9B8E),
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 16),
-
-          // Automated Progress Indicator (Feature 2)
-          Row(
-            children: [
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                decoration: BoxDecoration(
-                  color: statusColor,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  '$expensePercentage%',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: LinearProgressIndicator(
-                    value: expensePercentage / 100,
-                    minHeight: 8,
-                    backgroundColor: Colors.grey[200],
-                    valueColor: AlwaysStoppedAnimation<Color>(statusColor),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                currencyFormat.format(budget),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: Colors.grey[600],
-                ),
-              ),
-            ],
-          ),
-
-          const SizedBox(height: 12),
-
-          // Timely Insight (Feature 2: Rule-based logic)
-          Row(
-            children: [
-              Icon(Icons.info_outline, size: 16, color: Colors.grey[600]),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  statusMessage,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey[700],
-                  ),
                 ),
               ),
             ],
@@ -431,16 +452,33 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                   color: Colors.black87,
                 ),
               ),
-              Container(
-                padding: const EdgeInsets.all(6),
-                decoration: BoxDecoration(
-                  color: const Color(0xFF2D9B8E).withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Icon(
-                  Icons.bar_chart,
-                  size: 20,
-                  color: Color(0xFF2D9B8E),
+              GestureDetector(
+                onTap: _showDatePickerForReport,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2D9B8E),
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: const [
+                      Icon(
+                        Icons.calendar_month,
+                        size: 18,
+                        color: Colors.white,
+                      ),
+                      SizedBox(width: 4),
+                      Text(
+                        'Report',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -470,7 +508,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                             height: height.clamp(5.0, 150.0).toDouble(),
                             decoration: BoxDecoration(
                               color: const Color(0xFF2D9B8E),
-                              borderRadius:const BorderRadius.only(
+                              borderRadius: BorderRadius.only(
                                 topLeft: Radius.circular(4),
                                 topRight: Radius.circular(4),
                               ),
@@ -584,8 +622,8 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       }
     }
 
-    // Limit to 2 most recent transactions for memory efficiency
-    final recentTransactions = filteredTransactions.take(2).toList();
+    // Show ALL transactions for the selected period
+    final recentTransactions = filteredTransactions;
 
     return Padding(
       padding: const EdgeInsets.all(16),
@@ -622,8 +660,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                     ),
                   )
                 : ListView.builder(
-                    physics: const NeverScrollableScrollPhysics(),
-                    shrinkWrap: true,
+                    physics: const AlwaysScrollableScrollPhysics(),
                     itemCount: recentTransactions.length,
                     itemBuilder: (context, index) {
                       return _buildTransactionRow(recentTransactions[index]);
@@ -774,13 +811,15 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       );
     }
 
-    // Show only 1 goal for memory efficiency
-    final goal = goals.first;
-
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: _buildGoalProgressCard(goal),
+    // Show ALL goals for the user in a scrollable grid
+    return SingleChildScrollView(
+      physics: const AlwaysScrollableScrollPhysics(),
+      padding: const EdgeInsets.all(16),
+      child: Wrap(
+        spacing: 16,
+        runSpacing: 16,
+        alignment: WrapAlignment.center,
+        children: goals.map((goal) => _buildGoalProgressCard(goal)).toList(),
       ),
     );
   }
@@ -790,57 +829,77 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   Widget _buildGoalProgressCard(GoalModel goal) {
     final progress = (goal.currentAmount / goal.targetAmount * 100).clamp(0, 100).toInt();
 
-    return Container(
-      width: 200,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF2D9B8E), Color(0xFF1F7A6E)],
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-        ),
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Stack(
-            alignment: Alignment.center,
-            children: [
-              SizedBox(
-                width: 80,
-                height: 80,
-                child: CircularProgressIndicator(
-                  value: progress / 100,
-                  strokeWidth: 6,
-                  backgroundColor: Colors.white.withOpacity(0.3),
-                  valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
-                ),
-              ),
-              Text(
-                '$progress%',
-                style: const TextStyle(
-                  fontSize: 20,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.white,
-                ),
-              ),
-            ],
+    return GestureDetector(
+      onTap: () => _navigateToGoalDetail(goal),
+      child: Container(
+        width: 200,
+        padding: const EdgeInsets.all(20),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            colors: [Color(0xFF2D9B8E), Color(0xFF1F7A6E)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
           ),
-          const SizedBox(height: 12),
-          Text(
-            goal.name,
-            style: const TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.w600,
-              color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 8,
+              offset: const Offset(0, 4),
             ),
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-        ],
+          ],
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Stack(
+              alignment: Alignment.center,
+              children: [
+                SizedBox(
+                  width: 80,
+                  height: 80,
+                  child: CircularProgressIndicator(
+                    value: progress / 100,
+                    strokeWidth: 6,
+                    backgroundColor: Colors.white.withOpacity(0.3),
+                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                Text(
+                  '$progress%',
+                  style: const TextStyle(
+                    fontSize: 20,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              goal.name,
+              style: const TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: Colors.white,
+              ),
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  /// Navigate to Goal Detail page for viewing and editing
+  void _navigateToGoalDetail(GoalModel goal) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => GoalDetailPage(goal: goal),
       ),
     );
   }
@@ -984,5 +1043,38 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         ],
       ),
     );
+  }
+
+  /// Navigate to Report Page with date picker
+  void _showDatePickerForReport() async {
+    final DateTime? picked = await showDatePicker(
+      context: context,
+      initialDate: DateTime.now(),
+      firstDate: DateTime(2020),
+      lastDate: DateTime.now(),
+      builder: (context, child) {
+        return Theme(
+          data: Theme.of(context).copyWith(
+            colorScheme: const ColorScheme.light(
+              primary: Color(0xFF2D9B8E),
+              onPrimary: Colors.white,
+              surface: Colors.white,
+              onSurface: Colors.black,
+            ),
+          ),
+          child: child!,
+        );
+      },
+    );
+
+    if (picked != null) {
+      // Navigate to Report Page with selected date
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => ReportPage(selectedDate: picked),
+        ),
+      );
+    }
   }
 }

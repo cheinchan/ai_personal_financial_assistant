@@ -2,18 +2,17 @@ import 'package:flutter/material.dart';
 import 'add_income_page.dart';
 import 'add_expense_page.dart';
 import 'add_goal_page.dart';
-import 'dashboard_page.dart';
 
-class AddTransactionPage extends StatefulWidget {
-  final int initialTab;
-
-  const AddTransactionPage({super.key, this.initialTab = 1});
+/// Add Transaction Page Content (No Scaffold, No Bottom Nav)
+/// This will be embedded in MainNavigation at index 2
+class AddTransactionPageContent extends StatefulWidget {
+  const AddTransactionPageContent({super.key});
 
   @override
-  State<AddTransactionPage> createState() => _AddTransactionPageState();
+  State<AddTransactionPageContent> createState() => _AddTransactionPageContentState();
 }
 
-class _AddTransactionPageState extends State<AddTransactionPage>
+class _AddTransactionPageContentState extends State<AddTransactionPageContent>
     with SingleTickerProviderStateMixin {
   late TabController _tabController;
 
@@ -23,7 +22,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
     _tabController = TabController(
       length: 3,
       vsync: this,
-      initialIndex: widget.initialTab,
+      initialIndex: 1, // Default to "New Expenses"
     );
   }
 
@@ -40,10 +39,7 @@ class _AddTransactionPageState extends State<AddTransactionPage>
       appBar: AppBar(
         backgroundColor: const Color(0xFFD4E8E4),
         elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        automaticallyImplyLeading: false, // No back button!
         title: const Text(
           'Add transaction',
           style: TextStyle(
@@ -52,12 +48,6 @@ class _AddTransactionPageState extends State<AddTransactionPage>
             fontWeight: FontWeight.w600,
           ),
         ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.add, color: Colors.black),
-            onPressed: () {},
-          ),
-        ],
         bottom: PreferredSize(
           preferredSize: const Size.fromHeight(60),
           child: Container(
@@ -95,80 +85,6 @@ class _AddTransactionPageState extends State<AddTransactionPage>
           AddIncomePage(),
           AddExpensePage(),
           AddGoalPage(),
-        ],
-      ),
-      bottomNavigationBar: _buildBottomNavigationBar(),
-    );
-  }
-
-  Widget _buildBottomNavigationBar() {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.05),
-            blurRadius: 10,
-            offset: const Offset(0, -2),
-          ),
-        ],
-      ),
-      child: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceAround,
-            children: [
-              _buildNavItem(Icons.grid_view_rounded, 'Dashboard', false,
-                  onTap: () {
-                Navigator.of(context).pushReplacement(
-                  MaterialPageRoute(builder: (context) => const DashboardPage()),
-                );
-              }),
-              _buildNavItem(Icons.bar_chart_rounded, 'Budget', false),
-              _buildNavItem(Icons.add_circle, '', true, isCenter: true),
-              _buildNavItem(Icons.people_outline, 'Advices', false),
-              _buildNavItem(Icons.person_outline, 'Profile', false),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive,
-      {bool isCenter = false, VoidCallback? onTap}) {
-    if (isCenter) {
-      return Container(
-        padding: const EdgeInsets.all(12),
-        decoration: const BoxDecoration(
-          color: Color(0xFF2D9B8E),
-          shape: BoxShape.circle,
-        ),
-        child: Icon(icon, color: Colors.white, size: 28),
-      );
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isActive ? const Color(0xFF2D9B8E) : const Color(0xFF9CA3AF),
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color:
-                  isActive ? const Color(0xFF2D9B8E) : const Color(0xFF9CA3AF),
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
         ],
       ),
     );

@@ -26,24 +26,15 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _pages = [
     const DashboardPage(),
     const BudgetPage(),
-    const SizedBox(), // Placeholder for center button
+    const AddTransactionPageContent(), // Add Transaction is now index 2
     const AdvicePage(),
     const ProfilePage(),
   ];
 
   void _onNavTap(int index) {
-    if (index == 2) {
-      // Center button - Add Transaction
-      Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (context) => const AddTransactionPage(initialTab: 1),
-        ),
-      );
-    } else {
-      setState(() {
-        _currentIndex = index;
-      });
-    }
+    setState(() {
+      _currentIndex = index;
+    });
   }
 
   @override
@@ -91,8 +82,10 @@ class _MainNavigationState extends State<MainNavigation> {
                 onTap: () => _onNavTap(2),
                 child: Container(
                   padding: const EdgeInsets.all(12),
-                  decoration: const BoxDecoration(
-                    color: Color(0xFF2D9B8E),
+                  decoration: BoxDecoration(
+                    color: _currentIndex == 2 
+                        ? const Color(0xFF1F7A6E) 
+                        : const Color(0xFF2D9B8E),
                     shape: BoxShape.circle,
                   ),
                   child: const Icon(Icons.add, color: Colors.white, size: 28),
