@@ -3,11 +3,10 @@ import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
 import '../models/budget_model.dart';
+import '../widgets/custom_numeric_keypad.dart';
 
 class AddBudgetPage extends StatefulWidget {
-  final BudgetModel? existingBudget;
-  
-  const AddBudgetPage({super.key, this.existingBudget});
+  const AddBudgetPage({super.key});
 
   @override
   State<AddBudgetPage> createState() => _AddBudgetPageState();
@@ -16,453 +15,110 @@ class AddBudgetPage extends StatefulWidget {
 class _AddBudgetPageState extends State<AddBudgetPage> {
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
-  final _nameController = TextEditingController();
-  
+  final _budgetNameController = TextEditingController();
+
   String _amount = '0';
   DateTime? _startDate;
   DateTime? _endDate;
-  final Set<String> _selectedCategories = {};
-  bool _isLoading = false;
+  String? _selectedCategory;  // ✅ CHANGED: Single category instead of list
+  bool _showKeypad = false;
 
+  // Categories - EXACTLY matching Add Transaction pages
   final List<Map<String, dynamic>> _categories = [
-    {'name': 'Transport', 'icon': Icons.directions_car, 'color': Colors.orange},
-    {'name': 'Food', 'icon': Icons.restaurant, 'color': Colors.green},
-    {'name': 'Shopping', 'icon': Icons.card_giftcard, 'color': Colors.blue},
-    {'name': 'Health', 'icon': Icons.favorite, 'color': Colors.teal},
-    {'name': 'Clothes', 'icon': Icons.checkroom, 'color': Colors.deepPurple},
-    {'name': 'Baby', 'icon': Icons.child_care, 'color': Colors.pinkAccent},
-    {'name': 'Insurance', 'icon': Icons.shield, 'color': Colors.grey},
-    {'name': 'Home', 'icon': Icons.home, 'color': Colors.red.shade300},
+    {
+      'name': 'Transport',
+      'icon': Icons.directions_car,
+      'color': Color(0xFFFF9800),
+    },
+    {
+      'name': 'Food',
+      'icon': Icons.restaurant_menu,
+      'color': Color(0xFF4CAF50),
+    },
+    {
+      'name': 'Shopping',
+      'icon': Icons.card_giftcard,
+      'color': Color(0xFF2196F3),
+    },
+    {
+      'name': 'Bills',
+      'icon': Icons.attach_money,
+      'color': Color(0xFF00BCD4),
+    },
+    {
+      'name': 'Entertainment',
+      'icon': Icons.nightlight_round,
+      'color': Color(0xFF9C27B0),
+    },
+    {
+      'name': 'Health',
+      'icon': Icons.favorite,
+      'color': Color(0xFFE91E63),
+    },
+    {
+      'name': 'Fitness',
+      'icon': Icons.fitness_center,
+      'color': Color(0xFF616161),
+    },
+    {
+      'name': 'Other',
+      'icon': Icons.home,
+      'color': Color(0xFF9E9E9E),
+    },
   ];
 
   @override
   void initState() {
     super.initState();
-    if (widget.existingBudget != null) {
-      _amount = widget.existingBudget!.amount.toInt().toString();
-      _nameController.text = widget.existingBudget!.name ?? '';
-      _startDate = widget.existingBudget!.startDate;
-      _endDate = widget.existingBudget!.endDate;
-      _selectedCategories.addAll(widget.existingBudget!.categories);
-    }
+    // Set default dates to current month
+    final now = DateTime.now();
+    _startDate = DateTime(now.year, now.month, 1);
+    _endDate = DateTime(now.year, now.month + 1, 0);
   }
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _budgetNameController.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFD4E8E4),
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFD4E8E4),
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.black87),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
-        title: Text(
-          widget.existingBudget != null ? 'Edit Budget' : 'Add Budget',
-          style: const TextStyle(
-            color: Colors.black87,
-            fontSize: 20,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: SingleChildScrollView(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Amount Display
-                    _buildAmountDisplay(),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Budget Setting Section
-                    const Text(
-                      'Budget Setting',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    // Budget Name
-                    _buildTextField(
-                      controller: _nameController,
-                      hint: 'budget name',
-                    ),
-                    
-                    const SizedBox(height: 12),
-                    
-                    // Date Fields
-                    Row(
-                      children: [
-                        Expanded(
-                          child: _buildDateField(
-                            hint: 'start date',
-                            date: _startDate,
-                            onTap: () => _selectDate(true),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: _buildDateField(
-                            hint: 'end date',
-                            date: _endDate,
-                            onTap: () => _selectDate(false),
-                          ),
-                        ),
-                      ],
-                    ),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Category Selection
-                    const Text(
-                      'From category',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.black54,
-                      ),
-                    ),
-                    const SizedBox(height: 12),
-                    
-                    _buildCategoryGrid(),
-                    
-                    const SizedBox(height: 24),
-                    
-                    // Confirm Button
-                    SizedBox(
-                      width: double.infinity,
-                      height: 50,
-                      child: ElevatedButton(
-                        onPressed: _isLoading ? null : _handleConfirm,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: const Color(0xFF2D9B8E),
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          elevation: 0,
-                        ),
-                        child: _isLoading
-                            ? const SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                  color: Colors.white,
-                                ),
-                              )
-                            : const Text(
-                                'Confirm',
-                                style: TextStyle(
-                                  fontSize: 16,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          
-          // Custom Numeric Keypad
-          _buildNumericKeypad(),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildAmountDisplay() {
-    return Center(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            _amount,
-            style: const TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.w600,
-              color: Colors.black87,
-            ),
-          ),
-          const SizedBox(width: 16),
-          const Padding(
-            padding: EdgeInsets.only(top: 8),
-            child: Text(
-              'MYR',
-              style: TextStyle(
-                fontSize: 20,
-                fontWeight: FontWeight.w500,
-                color: Color(0xFF2D9B8E),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildTextField({
-    required TextEditingController controller,
-    required String hint,
-  }) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: Colors.grey.shade300),
-      ),
-      child: TextField(
-        controller: controller,
-        decoration: InputDecoration(
-          hintText: hint,
-          hintStyle: TextStyle(color: Colors.grey.shade400),
-          border: InputBorder.none,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildDateField({
-    required String hint,
-    required DateTime? date,
-    required VoidCallback onTap,
-  }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.grey.shade300),
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: Text(
-                date != null
-                    ? DateFormat('MMM d, y').format(date)
-                    : hint,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: date != null ? Colors.black87 : Colors.grey.shade400,
-                ),
-              ),
-            ),
-            Icon(
-              Icons.calendar_today,
-              size: 18,
-              color: const Color(0xFF2D9B8E),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCategoryGrid() {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 4,
-        mainAxisSpacing: 12,
-        crossAxisSpacing: 12,
-      ),
-      itemCount: _categories.length,
-      itemBuilder: (context, index) {
-        final category = _categories[index];
-        final isSelected = _selectedCategories.contains(category['name']);
-        
-        return GestureDetector(
-          onTap: () {
-            setState(() {
-              if (isSelected) {
-                _selectedCategories.remove(category['name']);
-              } else {
-                _selectedCategories.add(category['name']);
-              }
-            });
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: Colors.white,
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected 
-                    ? category['color'] 
-                    : Colors.grey.shade300,
-                width: isSelected ? 3 : 1,
-              ),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: category['color'].withOpacity(0.3),
-                        blurRadius: 8,
-                        offset: const Offset(0, 2),
-                      ),
-                    ]
-                  : null,
-            ),
-            child: Icon(
-              category['icon'],
-              color: category['color'],
-              size: 32,
-            ),
-          ),
-        );
-      },
-    );
-  }
-
-  Widget _buildNumericKeypad() {
-    return Container(
-      color: Colors.white,
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Column(
-        children: [
-          _buildKeypadRow(['1', '2', '3', '+']),
-          const SizedBox(height: 8),
-          _buildKeypadRow(['4', '5', '6', '-']),
-          const SizedBox(height: 8),
-          _buildKeypadRow(['7', '8', '9', '=']),
-          const SizedBox(height: 8),
-          _buildKeypadRow(['clear', '0', 'backspace']),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildKeypadRow(List<String> keys) {
-    return Row(
-      children: keys.map((key) {
-        if (key == 'clear') {
-          return Expanded(
-            child: _buildKeyButton(
-              onTap: () => setState(() => _amount = '0'),
-              child: Icon(
-                Icons.clear,
-                color: Colors.grey.shade600,
-                size: 24,
-              ),
-            ),
-          );
-        } else if (key == 'backspace') {
-          return Expanded(
-            child: _buildKeyButton(
-              onTap: _handleBackspace,
-              child: Icon(
-                Icons.backspace_outlined,
-                color: Colors.grey.shade600,
-                size: 24,
-              ),
-            ),
-          );
-        } else if (key == '+' || key == '-' || key == '=') {
-          return Expanded(
-            child: _buildKeyButton(
-              onTap: () {}, // Operators not functional in this version
-              child: Text(
-                key,
-                style: TextStyle(
-                  fontSize: 24,
-                  color: const Color(0xFF2D9B8E),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        } else {
-          return Expanded(
-            child: _buildKeyButton(
-              onTap: () => _handleNumberPress(key),
-              child: Text(
-                key,
-                style: const TextStyle(
-                  fontSize: 24,
-                  color: Colors.black87,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-            ),
-          );
-        }
-      }).toList(),
-    );
-  }
-
-  Widget _buildKeyButton({
-    required VoidCallback onTap,
-    required Widget child,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            height: 50,
-            alignment: Alignment.center,
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _handleNumberPress(String number) {
+  void _onNumberPressed(String number) {
     setState(() {
       if (_amount == '0') {
         _amount = number;
-      } else {
+      } else if (_amount.length < 8) {
         _amount += number;
       }
     });
   }
 
-  void _handleBackspace() {
+  void _onBackspace() {
     setState(() {
-      if (_amount.length > 1) {
+      if (_amount.isNotEmpty) {
         _amount = _amount.substring(0, _amount.length - 1);
-      } else {
-        _amount = '0';
+        if (_amount.isEmpty) {
+          _amount = '0';
+        }
       }
     });
   }
 
-  Future<void> _selectDate(bool isStartDate) async {
-    final DateTime? picked = await showDatePicker(
+  Future<void> _selectDate(BuildContext context, bool isStartDate) async {
+    final initialDate = isStartDate ? _startDate : _endDate;
+    final now = DateTime.now();
+
+    final picked = await showDatePicker(
       context: context,
-      initialDate: isStartDate
-          ? (_startDate ?? DateTime.now())
-          : (_endDate ?? DateTime.now()),
-      firstDate: DateTime(2020),
-      lastDate: DateTime(2030),
+      initialDate: initialDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 2),
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
             colorScheme: const ColorScheme.light(
               primary: Color(0xFF2D9B8E),
+              onPrimary: Colors.white,
+              onSurface: Colors.black,
             ),
           ),
           child: child!,
@@ -474,29 +130,58 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
       setState(() {
         if (isStartDate) {
           _startDate = picked;
+          if (_endDate != null && _endDate!.isBefore(picked)) {
+            _endDate = DateTime(picked.year, picked.month + 1, 0);
+          }
         } else {
           _endDate = picked;
+          if (_startDate != null && _startDate!.isAfter(picked)) {
+            _startDate = DateTime(picked.year, picked.month, 1);
+          }
         }
       });
     }
   }
 
-  Future<void> _handleConfirm() async {
-    // Validation
-    if (_amount == '0' || _amount.isEmpty) {
+  // ✅ CHANGED: Select only ONE category at a time (like Goal setting)
+  void _selectCategory(String category) {
+    setState(() {
+      if (_selectedCategory == category) {
+        _selectedCategory = null;  // Deselect if tapping same category
+      } else {
+        _selectedCategory = category;  // Select new category
+      }
+    });
+  }
+
+  Future<void> _confirmBudget() async {
+    // Validate amount
+    if (_amount == '0' || double.parse(_amount) == 0) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please enter a budget amount'),
+          content: Text('Please enter a valid budget amount'),
           backgroundColor: Colors.red,
         ),
       );
       return;
     }
 
-    if (_selectedCategories.isEmpty) {
+    // ✅ CHANGED: Validate single category
+    if (_selectedCategory == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Please select at least one category'),
+          content: Text('Please select a category to track'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
+
+    // Validate dates
+    if (_startDate == null || _endDate == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Please select start and end dates'),
           backgroundColor: Colors.red,
         ),
       );
@@ -506,50 +191,404 @@ class _AddBudgetPageState extends State<AddBudgetPage> {
     final user = _authService.currentUser;
     if (user == null) return;
 
-    setState(() => _isLoading = true);
-
     try {
+      // ✅ FIXED: Generate proper budget ID (not empty string!)
+      final budgetId = 'budget_${user.uid}_${DateTime.now().millisecondsSinceEpoch}';
+      
       final budget = BudgetModel(
-        id: widget.existingBudget?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
+        id: budgetId,  // ✅ FIXED: Proper ID instead of empty string
         userId: user.uid,
-        name: _nameController.text.trim().isEmpty ? null : _nameController.text.trim(),
+        name: _budgetNameController.text.trim().isEmpty
+            ? '$_selectedCategory Budget'  // ✅ CHANGED: Single category name
+            : _budgetNameController.text.trim(),
         amount: double.parse(_amount),
-        categories: _selectedCategories.toList(),
-        startDate: _startDate,
-        endDate: _endDate,
-        createdAt: widget.existingBudget?.createdAt ?? DateTime.now(),
+        categories: [_selectedCategory!],  // ✅ CHANGED: Single category in list
+        startDate: _startDate!,
+        endDate: _endDate!,
+        createdAt: DateTime.now(),
       );
 
-      if (widget.existingBudget != null) {
-        await _firestoreService.updateBudget(budget);
-      } else {
-        await _firestoreService.addBudget(budget);
-      }
+      await _firestoreService.addBudget(budget);
 
       if (!mounted) return;
-      
-      Navigator.of(context).pop();
-      
+
+      // ✅ CHANGED: Success message for single category
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text(
-            widget.existingBudget != null
-                ? 'Budget updated successfully'
-                : 'Budget created successfully',
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Budget created! System will track $_selectedCategory expenses and notify you when approaching limit',
+                ),
+              ),
+            ],
           ),
           backgroundColor: const Color(0xFF2D9B8E),
+          duration: const Duration(seconds: 3),
         ),
       );
+
+      Navigator.of(context).pop();
     } catch (e) {
-      setState(() => _isLoading = false);
       if (!mounted) return;
-      
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Error saving budget: $e'),
+          content: Text('Error creating budget: $e'),
           backgroundColor: Colors.red,
         ),
       );
     }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () {
+        if (_showKeypad) {
+          setState(() => _showKeypad = false);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: const Color(0xFFD4E8E4),
+        appBar: AppBar(
+          backgroundColor: const Color(0xFFD4E8E4),
+          elevation: 0,
+          leading: IconButton(
+            icon: const Icon(Icons.arrow_back, color: Colors.black87),
+            onPressed: () => Navigator.of(context).pop(),
+          ),
+          title: const Text(
+            'Add Budget',
+            style: TextStyle(
+              color: Colors.black87,
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+        body: SingleChildScrollView(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Amount Display
+              GestureDetector(
+                onTap: () {
+                  setState(() {
+                    _showKeypad = true;
+                  });
+                },
+                child: Container(
+                  padding: const EdgeInsets.symmetric(vertical: 20),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: _showKeypad
+                          ? const Color(0xFF2D9B8E)
+                          : Colors.grey.shade300,
+                      width: _showKeypad ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _amount,
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.black87,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      const Padding(
+                        padding: EdgeInsets.only(top: 8),
+                        child: Text(
+                          'MYR',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.w600,
+                            color: Color(0xFF2D9B8E),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Budget Name
+              const Text(
+                'Budget Name (Optional)',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _budgetNameController,
+                decoration: InputDecoration(
+                  hintText: 'e.g., Monthly Food Budget',
+                  hintStyle: TextStyle(color: Colors.grey[400], fontSize: 14),
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide.none,
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 14,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Budget Period
+              const Text(
+                'Budget Period',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _buildDateButton('Start Date', _startDate,
+                        () => _selectDate(context, true)),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _buildDateButton('End Date', _endDate,
+                        () => _selectDate(context, false)),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+
+              // ✅ CHANGED: Select ONE Category to Track (not multiple)
+              const Text(
+                'Select Category to Track',
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Choose one expense category this budget will monitor',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: Colors.grey[600],
+                ),
+              ),
+              const SizedBox(height: 12),
+
+              // Category Grid - SINGLE SELECTION ONLY
+              GridView.builder(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 12,
+                  mainAxisSpacing: 12,
+                  childAspectRatio: 0.9,
+                ),
+                itemCount: _categories.length,
+                itemBuilder: (context, index) {
+                  final category = _categories[index];
+                  final isSelected = _selectedCategory == category['name'];  // ✅ CHANGED
+
+                  return GestureDetector(
+                    onTap: () => _selectCategory(category['name']),  // ✅ CHANGED
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        // Icon Container
+                        Container(
+                          width: 60,
+                          height: 60,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            shape: BoxShape.circle,
+                            border: isSelected
+                                ? Border.all(
+                                    color: const Color(0xFF2D9B8E),
+                                    width: 3,
+                                  )
+                                : null,
+                            boxShadow: [
+                              BoxShadow(
+                                color: Colors.black.withOpacity(0.08),
+                                blurRadius: 8,
+                                offset: const Offset(0, 2),
+                              ),
+                            ],
+                          ),
+                          child: Icon(
+                            category['icon'],
+                            color: category['color'],
+                            size: 28,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        // Category Name
+                        Text(
+                          category['name'],
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: isSelected
+                                ? FontWeight.w600
+                                : FontWeight.normal,
+                            color: isSelected
+                                ? const Color(0xFF2D9B8E)
+                                : Colors.grey[700],
+                          ),
+                          textAlign: TextAlign.center,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+
+              const SizedBox(height: 20),
+
+              // Info Card - UPDATED MESSAGE
+              Container(
+                padding: const EdgeInsets.all(14),
+                decoration: BoxDecoration(
+                  color: Colors.blue.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.blue.shade200),
+                ),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.info_outline,
+                        color: Colors.blue.shade700, size: 20),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Text(
+                        'System will track expenses in the selected category and notify you at 70%, 90%, and when budget is exceeded',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.blue.shade900,
+                          height: 1.4,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              // Confirm Button
+              SizedBox(
+                width: double.infinity,
+                height: 50,
+                child: ElevatedButton(
+                  onPressed: _confirmBudget,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF2D9B8E),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Confirm',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Numeric Keypad
+              if (_showKeypad) ...[
+                CustomNumericKeypad(
+                  onNumberPressed: _onNumberPressed,
+                  onBackspace: _onBackspace,
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDateButton(String label, DateTime? date, VoidCallback onTap) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(color: Colors.grey.shade300),
+        ),
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    date != null ? DateFormat('dd MMM').format(date) : 'Select',
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Container(
+              padding: const EdgeInsets.all(6),
+              decoration: const BoxDecoration(
+                color: Color(0xFF2D9B8E),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.calendar_today,
+                size: 16,
+                color: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }

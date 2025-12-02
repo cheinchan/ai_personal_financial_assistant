@@ -576,7 +576,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             ],
           ),
           SizedBox(
-            height: 280,
+            height: 580,
             child: TabBarView(
               controller: _tabController,
               children: [

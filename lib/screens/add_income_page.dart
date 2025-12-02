@@ -13,10 +13,28 @@ class AddIncomePage extends StatefulWidget {
 
 class _AddIncomePageState extends State<AddIncomePage> {
   String _amount = '0';
-  String _source = 'transaction'; // 'transaction' or 'cash'
+  String _source = 'transaction';
   final _firestoreService = FirestoreService();
   final _authService = AuthService();
   bool _isLoading = false;
+  bool _showKeypad = false;
+  final _amountFocusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _amountFocusNode.addListener(() {
+      setState(() {
+        _showKeypad = _amountFocusNode.hasFocus;
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _amountFocusNode.dispose();
+    super.dispose();
+  }
 
   void _onNumberPressed(String number) {
     setState(() {
@@ -79,7 +97,9 @@ class _AddIncomePageState extends State<AddIncomePage> {
       setState(() {
         _amount = '0';
         _source = 'transaction';
+        _showKeypad = false;
       });
+      _amountFocusNode.unfocus();
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -103,37 +123,56 @@ class _AddIncomePageState extends State<AddIncomePage> {
           children: [
             const SizedBox(height: 20),
             
-            // Amount Display
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                const Text(
-                  '+',
-                  style: TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w300,
-                    color: Color(0xFF2D9B8E),
+            // Amount Display - Now clickable
+            GestureDetector(
+              onTap: () {
+                _amountFocusNode.requestFocus();
+              },
+              child: Container(
+                padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(
+                    color: _showKeypad ? const Color(0xFF2D9B8E) : Colors.grey[300]!,
+                    width: _showKeypad ? 2 : 1,
                   ),
                 ),
-                const SizedBox(width: 16),
-                Text(
-                  _amount,
-                  style: const TextStyle(
-                    fontSize: 48,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.black,
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    const Text(
+                      '+',
+                      style: TextStyle(
+                        fontSize: 48,
+                        fontWeight: FontWeight.w300,
+                        color: Color(0xFF2D9B8E),
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Flexible(
+                      child: Text(
+                        _amount,
+                        style: const TextStyle(
+                          fontSize: 48,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.black,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    const Text(
+                      'MYR',
+                      style: TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.w500,
+                        color: Color(0xFF2D9B8E),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 16),
-                const Text(
-                  'MYR',
-                  style: TextStyle(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                    color: Color(0xFF2D9B8E),
-                  ),
-                ),
-              ],
+              ),
             ),
             const SizedBox(height: 40),
 
@@ -190,12 +229,20 @@ class _AddIncomePageState extends State<AddIncomePage> {
                       ),
               ),
             ),
-            const SizedBox(height: 24),
+            
+            // Show keypad only when amount field is focused
+            if (_showKeypad) ...[
+              const SizedBox(height: 24),
+              CustomNumericKeypad(
+                onNumberPressed: _onNumberPressed,
+                onBackspace: _onBackspace,
+              ),
+            ],
 
-            // Custom Numeric Keypad
-            CustomNumericKeypad(
-              onNumberPressed: _onNumberPressed,
-              onBackspace: _onBackspace,
+            // Hidden FocusNode
+            Focus(
+              focusNode: _amountFocusNode,
+              child: const SizedBox.shrink(),
             ),
           ],
         ),
@@ -243,3 +290,5 @@ class _AddIncomePageState extends State<AddIncomePage> {
     );
   }
 }
+
+

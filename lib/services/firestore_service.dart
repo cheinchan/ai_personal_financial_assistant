@@ -96,7 +96,7 @@ class FirestoreService {
   
   Future<void> addBudget(BudgetModel budget) async {
     if (_userId == null) throw 'User not authenticated';
-    await _db.collection('budgets').doc(budget.id).set(budget.toMap());
+    await _db.collection('budgets').doc(budget.id).set(budget.toJson());
   }
 
   Stream<List<BudgetModel>> getBudgets() {
@@ -108,7 +108,7 @@ class FirestoreService {
         .orderBy('createdAt', descending: true)
         .snapshots()
         .map((snapshot) => snapshot.docs
-            .map((doc) => BudgetModel.fromMap(doc.data()))
+            .map((doc) => BudgetModel.fromJson(doc.data()))
             .toList());
   }
 
@@ -123,12 +123,12 @@ class FirestoreService {
         .get();
     
     return snapshot.docs
-        .map((doc) => BudgetModel.fromMap(doc.data()))
+        .map((doc) => BudgetModel.fromJson(doc.data()))
         .toList();
   }
 
   Future<void> updateBudget(BudgetModel budget) async {
-    await _db.collection('budgets').doc(budget.id).update(budget.toMap());
+    await _db.collection('budgets').doc(budget.id).update(budget.toJson());
   }
 
   Future<void> deleteBudget(String id) async {
