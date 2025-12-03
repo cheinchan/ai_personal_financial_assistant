@@ -1,13 +1,13 @@
 {
   "project_info": {
-    "project_number": "145718227216",
-    "project_id": "ai-financial-assistant-2",
-    "storage_bucket": "ai-financial-assistant-2.firebasestorage.app"
+    "project_number": "1047927650769",
+    "project_id": "aipersonalfinancialassistant",
+    "storage_bucket": "aipersonalfinancialassistant.firebasestorage.app"
   },
   "client": [
     {
       "client_info": {
-        "mobilesdk_app_id": "1:145718227216:android:54b5ad7b06cbc1a3f07595",
+        "mobilesdk_app_id": "1:1047927650769:android:1f502f875a0ad4164f08f0",
         "android_client_info": {
           "package_name": "com.example.ai_personal_financial_assistant"
         }
@@ -15,7 +15,7 @@
       "oauth_client": [],
       "api_key": [
         {
-          "current_key": "AIzaSyBd21Od9iUWa3mIy7Jhtf4wa_oXZmX0X8k"
+          "current_key": "AIzaSyBGE01FTHzNcX8M0j0z0QXgUB6ISRgiOOo"
         }
       ],
       "services": {

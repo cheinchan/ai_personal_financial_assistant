@@ -29,13 +29,45 @@ class DefaultFirebaseOptions {
   );
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBGE01FTHzNcX8M0j0z0QXgUB6ISRgiOOo',              // From google-services.json: client[0].api_key[0].current_key
-    appId: '1:1047927650769:android:1f502f875a0ad4164f08f0',                // From google-services.json: client[0].client_info.mobilesdk_app_id
-    messagingSenderId: '1047927650769', // From google-services.json: project_info.project_number
-    projectId: 'aipersonalfinancialassistant',        // From google-services.json: project_info.project_id
-    storageBucket: 'aipersonalfinancialassistant.firebasestorage.app',        // From google-services.json: project_info.storage_bucket
+    apiKey: 'AIzaSyBd21Od9iUWa3mIy7Jhtf4wa_oXZmX0X8k',              // From google-services.json: client[0].api_key[0].current_key
+    appId: '1:145718227216:android:54b5ad7b06cbc1a3f07595',                // From google-services.json: client[0].client_info.mobilesdk_app_id
+    messagingSenderId: '145718227216', // From google-services.json: project_info.project_number
+    projectId: 'ai-financial-assistant-2',        // From google-services.json: project_info.project_id
+    storageBucket: 'ai-financial-assistant-2.firebasestorage.app',        // From google-services.json: project_info.storage_bucket
   );
 }
+
+
+// {
+//   "project_info": {
+//     "project_number": "145718227216",
+//     "project_id": "ai-financial-assistant-2",
+//     "storage_bucket": "ai-financial-assistant-2.firebasestorage.app"
+//   },
+//   "client": [
+//     {
+//       "client_info": {
+//         "mobilesdk_app_id": "1:145718227216:android:54b5ad7b06cbc1a3f07595",
+//         "android_client_info": {
+//           "package_name": "com.example.ai_personal_financial_assistant"
+//         }
+//       },
+//       "oauth_client": [],
+//       "api_key": [
+//         {
+//           "current_key": "AIzaSyBd21Od9iUWa3mIy7Jhtf4wa_oXZmX0X8k"
+//         }
+//       ],
+//       "services": {
+//         "appinvite_service": {
+//           "other_platform_oauth_client": []
+//         }
+//       }
+//     }
+//   ],
+//   "configuration_version": "1"
+// }
+
 
 // {
 //   "project_info": {
