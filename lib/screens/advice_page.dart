@@ -2,8 +2,6 @@ import 'package:flutter/material.dart';
 import '../services/gemini_service.dart';
 import '../services/firestore_service.dart';
 import '../models/transaction_model.dart';
-import 'dashboard_page.dart';
-import 'add_transaction_page.dart';
 
 class AdvicePage extends StatefulWidget {
   const AdvicePage({super.key});
@@ -19,6 +17,7 @@ class _AdvicePageState extends State<AdvicePage> {
 
   bool _isLoadingInsights = false;
   bool _isLoadingAnswer = false;
+  bool? _connectionStatus; // Track connection silently
   String? _aiInsights;
   String? _currentAnswer;
 
@@ -30,6 +29,7 @@ class _AdvicePageState extends State<AdvicePage> {
   @override
   void initState() {
     super.initState();
+    _testAIConnection(); // Test silently in background
     _loadData();
   }
 
@@ -37,6 +37,40 @@ class _AdvicePageState extends State<AdvicePage> {
   void dispose() {
     _questionController.dispose();
     super.dispose();
+  }
+
+  /// Test AI connection silently in background
+  Future<void> _testAIConnection() async {
+    try {
+      final isConnected = await _geminiService.testConnection();
+      setState(() {
+        _connectionStatus = isConnected;
+      });
+
+      // Only show error if connection fails
+      if (!isConnected && mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                Icon(Icons.warning_amber_rounded, color: Colors.white),
+                SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                      '⚠️ AI connection issue. Please check your API key.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.orange,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e) {
+      setState(() {
+        _connectionStatus = false;
+      });
+    }
   }
 
   Future<void> _loadData() async {
@@ -192,10 +226,21 @@ class _AdvicePageState extends State<AdvicePage> {
                       ),
                       Row(
                         children: [
+                          // Refresh button with subtle connection indicator
                           IconButton(
-                            onPressed: _generateInsights,
-                            icon: const Icon(Icons.refresh),
-                            color: Colors.black,
+                            onPressed: () async {
+                              await _loadData();
+                              await _testAIConnection();
+                            },
+                            icon: Icon(
+                              Icons.refresh,
+                              color: _connectionStatus == false
+                                  ? Colors.orange
+                                  : Colors.black,
+                            ),
+                            tooltip: _connectionStatus == false
+                                ? 'AI connection issue - Tap to retry'
+                                : 'Refresh',
                           ),
                           IconButton(
                             onPressed: () {},
@@ -614,47 +659,6 @@ class _AdvicePageState extends State<AdvicePage> {
             ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildNavItem(IconData icon, String label, bool isActive,
-      {bool isCenter = false, VoidCallback? onTap}) {
-    if (isCenter) {
-      return GestureDetector(
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.all(12),
-          decoration: const BoxDecoration(
-            color: Color(0xFF2D9B8E),
-            shape: BoxShape.circle,
-          ),
-          child: Icon(icon, color: Colors.white, size: 28),
-        ),
-      );
-    }
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(
-            icon,
-            color: isActive ? const Color(0xFF2D9B8E) : const Color(0xFF9CA3AF),
-            size: 24,
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              color:
-                  isActive ? const Color(0xFF2D9B8E) : const Color(0xFF9CA3AF),
-              fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
-            ),
-          ),
-        ],
       ),
     );
   }

@@ -789,8 +789,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     );
   }
 
-  /// Feature 3: Goals Progress Visualization
-  /// Shows savings goals with visual indicators (progress bars)
+  /// Feature 3: Goals Progress Visualization with AUTO-CALCULATED savings
   Widget _buildGoalsProgressTab(List<GoalModel> goals) {
     if (goals.isEmpty) {
       return Center(
@@ -806,37 +805,193 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                 color: Colors.grey[600],
               ),
             ),
+            const SizedBox(height: 8),
+            Text(
+              'Create a goal to start saving!',
+              style: TextStyle(
+                fontSize: 14,
+                color: Colors.grey[500],
+              ),
+            ),
           ],
         ),
       );
     }
 
-    // Show ALL goals for the user in a scrollable grid
+    // ✅ Calculate actual savings for each goal based on transactions
+    final goalsWithCalculatedSavings = goals.map((goal) {
+      final calculatedSavings = _calculateGoalSavings(goal);
+      return goal.copyWithCalculatedAmount(calculatedSavings);
+    }).toList();
+
+    // Calculate total statistics
+    final totalGoalTarget = goalsWithCalculatedSavings.fold<double>(0, (sum, g) => sum + g.targetAmount);
+    final totalSaved = goalsWithCalculatedSavings.fold<double>(0, (sum, g) => sum + g.currentAmount);
+    final remainingToSave = totalGoalTarget - totalSaved;
+
     return SingleChildScrollView(
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      child: Wrap(
-        spacing: 16,
-        runSpacing: 16,
-        alignment: WrapAlignment.center,
-        children: goals.map((goal) => _buildGoalProgressCard(goal)).toList(),
+      child: Column(
+        children: [
+          // ✅ Summary Card
+          _buildGoalsSummaryCard(totalSaved, totalGoalTarget, remainingToSave, goals.length),
+          
+          const SizedBox(height: 16),
+          
+          // Goal Cards with auto-calculated savings
+          ...goalsWithCalculatedSavings.map((goal) => _buildAutoTrackedGoalCard(goal)),
+        ],
       ),
     );
   }
 
-  /// Feature 3: Goal Progress Card with Visual Indicators
-  /// Circular progress bars to enhance motivation
-  Widget _buildGoalProgressCard(GoalModel goal) {
-    final progress = (goal.currentAmount / goal.targetAmount * 100).clamp(0, 100).toInt();
+  // ✅ NEW: Calculate actual savings for a goal based on transactions
+  double _calculateGoalSavings(GoalModel goal) {
+    if (_cachedFilteredTransactions == null) return 0;
+
+    // Get ALL transactions (not just filtered by period)
+    // We need to look at the full transaction history for the goal period
+    
+    // Filter transactions within goal period
+    final goalTransactions = _cachedFilteredTransactions!.where((t) {
+      final isWithinPeriod = (t.createdAt.isAfter(goal.startDate) || 
+                             t.createdAt.isAtSameMomentAs(goal.startDate)) &&
+                             (t.createdAt.isBefore(goal.endDate) || 
+                             t.createdAt.isAtSameMomentAs(goal.endDate));
+      return isWithinPeriod;
+    }).toList();
+
+    double income = 0;
+    double expenses = 0;
+
+    for (var t in goalTransactions) {
+      if (t.type == 'income') income += t.amount;
+      if (t.type == 'expense') expenses += t.amount;
+    }
+
+    final savings = income - expenses;
+    return savings > 0 ? savings : 0; // Only count positive savings
+  }
+
+  // ✅ NEW: Summary Card
+  Widget _buildGoalsSummaryCard(double totalSaved, double totalTarget, double remaining, int goalCount) {
+    final progressPercent = totalTarget > 0 ? (totalSaved / totalTarget * 100).clamp(0, 100) : 0;
+
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [Color(0xFF2D9B8E), Color(0xFF1F7A6E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(0.1),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Column(
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Total Savings Progress',
+                    style: TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'MYR ${totalSaved.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  Text(
+                    'of MYR ${totalTarget.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: Colors.white70,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          const Divider(color: Colors.white30),
+          const SizedBox(height: 12),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceAround,
+            children: [
+              _buildSavingsMetric('Active Goals', '$goalCount', Icons.flag),
+              _buildSavingsMetric('Saved', '${totalSaved.toInt()}', Icons.savings),
+              _buildSavingsMetric('Remaining', '${remaining.toInt()}', Icons.track_changes),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSavingsMetric(String label, String value, IconData icon) {
+    return Column(
+      children: [
+        Icon(icon, color: Colors.white70, size: 16),
+        const SizedBox(height: 4),
+        Text(
+          value,
+          style: const TextStyle(
+            color: Colors.white,
+            fontSize: 14,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        Text(
+          label,
+          style: const TextStyle(
+            color: Colors.white70,
+            fontSize: 10,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ✅ NEW: Auto-Tracked Goal Card (NO manual input)
+  Widget _buildAutoTrackedGoalCard(GoalModel goal) {
+    final progress = goal.progress.toInt();
+    final remaining = goal.targetAmount - goal.currentAmount;
+    final isOnTrack = goal.isOnTrack;
+    
+    final priorityColor = goal.priority == 'high' 
+        ? Colors.red 
+        : goal.priority == 'medium' 
+            ? Colors.orange 
+            : Colors.green;
 
     return GestureDetector(
       onTap: () => _navigateToGoalDetail(goal),
       child: Container(
-        width: 200,
-        padding: const EdgeInsets.all(20),
+        margin: const EdgeInsets.only(bottom: 12),
+        padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          gradient: const LinearGradient(
-            colors: [Color(0xFF2D9B8E), Color(0xFF1F7A6E)],
+          gradient: LinearGradient(
+            colors: isOnTrack
+                ? [const Color(0xFF2D9B8E), const Color(0xFF1F7A6E)]
+                : [Colors.orange, Colors.deepOrange],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -845,48 +1000,158 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             BoxShadow(
               color: Colors.black.withOpacity(0.1),
               blurRadius: 8,
-              offset: const Offset(0, 4),
+              offset: const Offset(0, 2),
             ),
           ],
         ),
         child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
           children: [
-            Stack(
-              alignment: Alignment.center,
+            Row(
               children: [
-                SizedBox(
-                  width: 80,
-                  height: 80,
-                  child: CircularProgressIndicator(
-                    value: progress / 100,
-                    strokeWidth: 6,
-                    backgroundColor: Colors.white.withOpacity(0.3),
-                    valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              goal.name,
+                              style: const TextStyle(
+                                fontSize: 16,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: priorityColor,
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Text(
+                              goal.priority.toUpperCase(),
+                              style: const TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'MYR ${goal.currentAmount.toInt()} / ${goal.targetAmount.toInt()}',
+                        style: const TextStyle(
+                          fontSize: 13,
+                          color: Colors.white70,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Row(
+                        children: [
+                          const Icon(Icons.auto_awesome, color: Colors.white60, size: 12),
+                          const SizedBox(width: 4),
+                          Text(
+                            'Auto-tracked • ${goal.daysRemaining} days left',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              color: Colors.white60,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-                Text(
-                  '$progress%',
-                  style: const TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color: Colors.white,
-                  ),
+                Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    SizedBox(
+                      width: 60,
+                      height: 60,
+                      child: CircularProgressIndicator(
+                        value: progress / 100,
+                        strokeWidth: 5,
+                        backgroundColor: Colors.white.withOpacity(0.3),
+                        valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
+                      ),
+                    ),
+                    Text(
+                      '$progress%',
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
+            
             const SizedBox(height: 12),
-            Text(
-              goal.name,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.white,
+            
+            ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: LinearProgressIndicator(
+                value: progress / 100,
+                minHeight: 8,
+                backgroundColor: Colors.white.withOpacity(0.3),
+                valueColor: const AlwaysStoppedAnimation<Color>(Colors.white),
               ),
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
+            ),
+            
+            const SizedBox(height: 12),
+            
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      isOnTrack ? Icons.check_circle : Icons.warning,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      isOnTrack ? 'On Track' : 'Behind Schedule',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
+                ),
+                
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.trending_up, color: Colors.white, size: 14),
+                      const SizedBox(width: 4),
+                      Text(
+                        'MYR ${remaining.toInt()} left',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          color: Colors.white,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ],
         ),

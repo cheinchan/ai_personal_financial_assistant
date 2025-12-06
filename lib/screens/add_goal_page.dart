@@ -19,6 +19,7 @@ class _AddGoalPageState extends State<AddGoalPage> {
   DateTime? _endDate;
   String? _selectedCategory;
   String? _customCategory;
+  String _selectedPriority = 'medium';
   final _firestoreService = FirestoreService();
   final _authService = AuthService();
   bool _isLoading = false;
@@ -76,85 +77,70 @@ class _AddGoalPageState extends State<AddGoalPage> {
     });
   }
 
-  // Smart icon assignment based on category keywords
   IconData _getSmartIcon(String category) {
     final lowerCategory = category.toLowerCase();
     
-    // Transportation keywords
     if (lowerCategory.contains('car') || lowerCategory.contains('vehicle') || 
         lowerCategory.contains('transport') || lowerCategory.contains('motorcycle')) {
       return Icons.directions_car;
     }
     
-    // Food keywords
     if (lowerCategory.contains('food') || lowerCategory.contains('restaurant')) {
       return Icons.restaurant;
     }
     
-    // Shopping keywords
     if (lowerCategory.contains('shop') || lowerCategory.contains('store') ||
         lowerCategory.contains('gift') || lowerCategory.contains('present')) {
       return Icons.card_giftcard;
     }
     
-    // Savings/Money keywords
     if (lowerCategory.contains('saving') || lowerCategory.contains('emergency') ||
         lowerCategory.contains('money') || lowerCategory.contains('fund')) {
       return Icons.savings;
     }
     
-    // Entertainment keywords
     if (lowerCategory.contains('entertainment') || lowerCategory.contains('game') ||
         lowerCategory.contains('hobby') || lowerCategory.contains('fun')) {
       return Icons.nightlight_round;
     }
     
-    // Home keywords
     if (lowerCategory.contains('home') || lowerCategory.contains('house') ||
         lowerCategory.contains('apartment') || lowerCategory.contains('furniture')) {
       return Icons.home;
     }
     
-    // Travel keywords
     if (lowerCategory.contains('travel') || lowerCategory.contains('vacation') ||
         lowerCategory.contains('holiday') || lowerCategory.contains('trip')) {
       return Icons.flight;
     }
     
-    // Education keywords
     if (lowerCategory.contains('education') || lowerCategory.contains('school') ||
         lowerCategory.contains('course') || lowerCategory.contains('study')) {
       return Icons.school;
     }
     
-    // Wedding keywords
     if (lowerCategory.contains('wedding') || lowerCategory.contains('marriage')) {
       return Icons.favorite;
     }
     
-    // Baby keywords
     if (lowerCategory.contains('baby') || lowerCategory.contains('child')) {
       return Icons.child_care;
     }
     
-    // Electronics keywords
     if (lowerCategory.contains('phone') || lowerCategory.contains('laptop') ||
         lowerCategory.contains('computer') || lowerCategory.contains('gadget') ||
         lowerCategory.contains('electronic')) {
       return Icons.phone_android;
     }
     
-    // Business keywords
     if (lowerCategory.contains('business') || lowerCategory.contains('startup')) {
       return Icons.business;
     }
     
-    // Investment keywords
     if (lowerCategory.contains('invest') || lowerCategory.contains('stock')) {
       return Icons.trending_up;
     }
     
-    // Default icon
     return Icons.flag;
   }
 
@@ -180,7 +166,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
       setState(() {
         if (isStartDate) {
           _startDate = picked;
-          // Auto-set end date if not set
           if (_endDate == null || _endDate!.isBefore(picked)) {
             _endDate = picked.add(const Duration(days: 30));
           }
@@ -222,7 +207,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
       return;
     }
 
-    // Determine final category
     String? finalCategory = _selectedCategory;
     if (_selectedCategory == 'Other' && _customCategory != null && _customCategory!.trim().isNotEmpty) {
       finalCategory = _customCategory!.trim();
@@ -253,6 +237,7 @@ class _AddGoalPageState extends State<AddGoalPage> {
         endDate: _endDate!,
         category: finalCategory,
         createdAt: DateTime.now(),
+        priority: _selectedPriority,
       );
 
       await _firestoreService.addGoal(goal);
@@ -266,7 +251,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
         ),
       );
 
-      // Reset form
       setState(() {
         _amount = '0';
         _nameController.clear();
@@ -274,6 +258,7 @@ class _AddGoalPageState extends State<AddGoalPage> {
         _endDate = null;
         _selectedCategory = null;
         _customCategory = null;
+        _selectedPriority = 'medium';
         _showCustomCategoryInput = false;
         _customCategoryController.clear();
         _showKeypad = false;
@@ -296,7 +281,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
   Widget build(BuildContext context) {
     return GestureDetector(
       onTap: () {
-        // Dismiss keypad when tapping outside
         if (_showKeypad) {
           _amountFocusNode.unfocus();
         }
@@ -309,7 +293,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
             children: [
               const SizedBox(height: 20),
               
-              // Amount Display - Now clickable
               GestureDetector(
                 onTap: () {
                   _amountFocusNode.requestFocus();
@@ -353,7 +336,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
               ),
               const SizedBox(height: 40),
 
-              // Goal Setting Section
               const Text(
                 'Goal Setting',
                 style: TextStyle(
@@ -364,7 +346,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
               ),
               const SizedBox(height: 12),
 
-              // Goal Name Input
               TextField(
                 controller: _nameController,
                 decoration: InputDecoration(
@@ -389,7 +370,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
               ),
               const SizedBox(height: 16),
 
-              // Date Pickers Row
               Row(
                 children: [
                   Expanded(
@@ -411,7 +391,26 @@ class _AddGoalPageState extends State<AddGoalPage> {
               ),
               const SizedBox(height: 24),
 
-              // From Category
+              const Text(
+                'Goal Priority',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.w500,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  _buildPriorityButton('High', 'high', Colors.red),
+                  const SizedBox(width: 8),
+                  _buildPriorityButton('Medium', 'medium', Colors.orange),
+                  const SizedBox(width: 8),
+                  _buildPriorityButton('Low', 'low', Colors.green),
+                ],
+              ),
+              const SizedBox(height: 24),
+
               const Text(
                 'From category',
                 style: TextStyle(
@@ -422,7 +421,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
               ),
               const SizedBox(height: 12),
 
-              // Category Grid
               GridView.builder(
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
@@ -445,7 +443,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
                 },
               ),
 
-              // Custom Category Input (shows when "Other" is selected)
               if (_showCustomCategoryInput) ...[
                 const SizedBox(height: 16),
                 Container(
@@ -517,7 +514,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
 
               const SizedBox(height: 32),
 
-              // Confirm Button
               SizedBox(
                 width: double.infinity,
                 height: 56,
@@ -550,7 +546,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
                 ),
               ),
               
-              // Show keypad only when amount field is focused
               if (_showKeypad) ...[
                 const SizedBox(height: 24),
                 CustomNumericKeypad(
@@ -559,7 +554,6 @@ class _AddGoalPageState extends State<AddGoalPage> {
                 ),
               ],
 
-              // Hidden FocusNode
               Focus(
                 focusNode: _amountFocusNode,
                 child: const SizedBox.shrink(),
@@ -603,6 +597,43 @@ class _AddGoalPageState extends State<AddGoalPage> {
               color: const Color(0xFF2D9B8E),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildPriorityButton(String label, String value, Color color) {
+    final isSelected = _selectedPriority == value;
+    
+    return Expanded(
+      child: GestureDetector(
+        onTap: () => setState(() => _selectedPriority = value),
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 12),
+          decoration: BoxDecoration(
+            color: isSelected ? color : Colors.white,
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: isSelected ? color : Colors.grey[300]!,
+              width: isSelected ? 2 : 1,
+            ),
+          ),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              if (isSelected)
+                const Icon(Icons.check, color: Colors.white, size: 16),
+              if (isSelected) const SizedBox(width: 4),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: isSelected ? FontWeight.w600 : FontWeight.w500,
+                  color: isSelected ? Colors.white : Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );
