@@ -391,24 +391,8 @@ class _AddGoalPageState extends State<AddGoalPage> {
               ),
               const SizedBox(height: 24),
 
-              const Text(
-                'Goal Priority',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w500,
-                  color: Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Row(
-                children: [
-                  _buildPriorityButton('High', 'high', Colors.red),
-                  const SizedBox(width: 8),
-                  _buildPriorityButton('Medium', 'medium', Colors.orange),
-                  const SizedBox(width: 8),
-                  _buildPriorityButton('Low', 'low', Colors.green),
-                ],
-              ),
+            
+              
               const SizedBox(height: 24),
 
               const Text(

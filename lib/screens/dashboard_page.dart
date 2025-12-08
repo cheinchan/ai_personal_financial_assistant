@@ -35,6 +35,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   Map<String, double>? _cachedSummary;
   List<TransactionModel>? _cachedFilteredTransactions;
   String? _lastPeriodCalculated;
+  
+  // ✅ NEW: Trigger to refresh goals after completion
+  int _goalsRefreshKey = 0;
+  
+  // ✅ NEW: Track goals being processed to prevent double-click
+  final Set<String> _processingGoals = {};
 
   @override
   void initState() {
@@ -293,32 +299,41 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           ),
 
           // Savings Display (Feature 1: Savings Logging)
-          if (savings > 0) ...[
-            const SizedBox(height: 12),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.green.withOpacity(0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  const Icon(Icons.savings_outlined, color: Colors.green, size: 20),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Savings: ${currencyFormat.format(savings)}',
-                    style: const TextStyle(
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.green,
-                    ),
-                  ),
-                ],
+          // Always show savings, even if 0
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: savings > 0 
+                  ? Colors.green.withOpacity(0.1)
+                  : Colors.grey.withOpacity(0.1),
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(
+                color: savings > 0 
+                    ? Colors.green.withOpacity(0.3)
+                    : Colors.grey.withOpacity(0.3),
               ),
             ),
-          ],
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  Icons.savings_outlined, 
+                  color: savings > 0 ? Colors.green : Colors.grey,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Savings: ${currencyFormat.format(savings)}',
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                    color: savings > 0 ? Colors.green : Colors.grey[600],
+                  ),
+                ),
+              ],
+            ),
+          ),
         ],
       ),
     );
@@ -592,15 +607,20 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
 
   /// Separate goals tab with its own StreamBuilder
   Widget _buildGoalsTab() {
-    return StreamBuilder<List<GoalModel>>(
-      stream: _firestoreService.getGoals(),
+    return FutureBuilder<List<GoalModel>>(
+      key: ValueKey(_goalsRefreshKey), // ✅ Force rebuild when this changes
+      future: _firestoreService.getGoalsWithProgress(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator(strokeWidth: 2));
         }
         
         final goals = snapshot.data ?? [];
-        return _buildGoalsProgressTab(goals);
+        
+        // ✅ Filter out completed goals - hide them from display
+        final activeGoals = goals.where((goal) => goal.status != 'completed').toList();
+        
+        return _buildGoalsProgressTab(activeGoals);
       },
     );
   }
@@ -799,7 +819,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             Icon(Icons.flag_outlined, size: 64, color: Colors.grey[400]),
             const SizedBox(height: 16),
             Text(
-              'No goals yet',
+              'No active goals',
               style: TextStyle(
                 fontSize: 16,
                 color: Colors.grey[600],
@@ -970,11 +990,12 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
     );
   }
 
-  // ✅ NEW: Auto-Tracked Goal Card (NO manual input)
+  // ✅ Auto-Tracked Goal Card with Complete Button (only for achieved goals)
   Widget _buildAutoTrackedGoalCard(GoalModel goal) {
     final progress = goal.progress.toInt();
     final remaining = goal.targetAmount - goal.currentAmount;
     final isOnTrack = goal.isOnTrack;
+    final isAchieved = progress >= 100; // ✅ Check if goal is achieved
     
     final priorityColor = goal.priority == 'high' 
         ? Colors.red 
@@ -989,9 +1010,11 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: isOnTrack
-                ? [const Color(0xFF2D9B8E), const Color(0xFF1F7A6E)]
-                : [Colors.orange, Colors.deepOrange],
+            colors: isAchieved
+                ? [Colors.green, Colors.green.shade700]  // ✅ Green for achieved goals
+                : isOnTrack
+                    ? [const Color(0xFF2D9B8E), const Color(0xFF1F7A6E)]
+                    : [Colors.orange, Colors.deepOrange],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
@@ -1114,13 +1137,13 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                 Row(
                   children: [
                     Icon(
-                      isOnTrack ? Icons.check_circle : Icons.warning,
+                      isAchieved ? Icons.emoji_events : isOnTrack ? Icons.check_circle : Icons.warning,
                       color: Colors.white,
                       size: 16,
                     ),
                     const SizedBox(width: 4),
                     Text(
-                      isOnTrack ? 'On Track' : 'Behind Schedule',
+                      isAchieved ? 'Goal Achieved!' : isOnTrack ? 'On Track' : 'Behind Schedule',
                       style: const TextStyle(
                         fontSize: 12,
                         color: Colors.white,
@@ -1138,10 +1161,16 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                   ),
                   child: Row(
                     children: [
-                      const Icon(Icons.trending_up, color: Colors.white, size: 14),
+                      Icon(
+                        isAchieved ? Icons.celebration : Icons.trending_up, 
+                        color: Colors.white, 
+                        size: 14,
+                      ),
                       const SizedBox(width: 4),
                       Text(
-                        'MYR ${remaining.toInt()} left',
+                        isAchieved 
+                            ? 'Achieved!' 
+                            : 'MYR ${remaining.toInt()} left',
                         style: const TextStyle(
                           fontSize: 11,
                           color: Colors.white,
@@ -1153,10 +1182,320 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
                 ),
               ],
             ),
+            
+            // ✅ Complete Goal Button - ONLY show if:
+            // 1. Goal is achieved (100% or more)
+            // 2. Goal is NOT already completed (prevent repeat completion)
+            // 3. Goal is NOT currently being processed (prevent double-click)
+            if (progress >= 100 && 
+                goal.status != 'completed' && 
+                !_processingGoals.contains(goal.id)) ...[
+              const SizedBox(height: 12),
+              
+              Row(
+                children: [
+                  Expanded(
+                    child: ElevatedButton.icon(
+                      onPressed: () => _showCompleteGoalDialog(goal),
+                      icon: const Icon(Icons.check_circle_outline, size: 18),
+                      label: const Text('Mark as Complete'),
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: Colors.white,
+                        foregroundColor: const Color(0xFF2D9B8E),
+                        padding: const EdgeInsets.symmetric(vertical: 12),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        elevation: 0,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
           ],
         ),
       ),
     );
+  }
+
+  /// ✅ Show confirmation dialog before completing goal
+  void _showCompleteGoalDialog(GoalModel goal) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.celebration,
+                color: Colors.green,
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Expanded(
+              child: Text(
+                'Complete Goal? 🎉',
+                style: TextStyle(fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'You\'ve reached your goal for "${goal.name}"!',
+              style: const TextStyle(fontSize: 15),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.green.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.withOpacity(0.3)),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      const Icon(Icons.savings, color: Colors.green, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Saved: MYR ${goal.currentAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.flag, color: Colors.blue, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Target: MYR ${goal.targetAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.blue,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    children: [
+                      const Icon(Icons.celebration, color: Colors.orange, size: 18),
+                      const SizedBox(width: 8),
+                      Text(
+                        'Progress: ${goal.progress.toInt()}%',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.orange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.orange.withOpacity(0.3)),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'MYR ${goal.targetAmount.toStringAsFixed(2)} will be deducted as an expense (Category: Goal Completion).',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.black87,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'This goal will be hidden from your dashboard (kept in database for records).',
+              style: TextStyle(
+                fontSize: 13,
+                color: Colors.black54,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: Text(
+              'Cancel',
+              style: TextStyle(
+                color: Colors.grey[600],
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(context);
+              await _markGoalAsComplete(goal);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF2D9B8E),
+              foregroundColor: Colors.white,
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text(
+              'Complete Goal',
+              style: TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// ✅ Mark goal as completed (keep in database, just hide from display)
+  Future<void> _markGoalAsComplete(GoalModel goal) async {
+    // ✅ Check if already processing this goal (prevent double-click)
+    if (_processingGoals.contains(goal.id)) {
+      return; // Already processing, ignore this click
+    }
+    
+    try {
+      // ✅ Mark as processing
+      setState(() {
+        _processingGoals.add(goal.id);
+      });
+      
+      // Show loading indicator
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Row(
+              children: [
+                SizedBox(
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                  ),
+                ),
+                SizedBox(width: 12),
+                Text('Completing goal...'),
+              ],
+            ),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+
+      // ✅ 1. Create expense transaction to deduct ONLY the target amount
+      final expenseTransaction = TransactionModel(
+        id: '', // Firestore will generate
+        userId: _authService.currentUser!.uid,
+        amount: goal.targetAmount, // ✅ Deduct only the target amount (what's needed)
+        type: 'expense',
+        source: goal.name, // Goal name as source
+        category: 'Goal Completion', // Category for completed goals
+        createdAt: DateTime.now(),
+      );
+      
+      await _firestoreService.addTransaction(expenseTransaction);
+
+      // ✅ 2. Mark goal as completed (keep in database, just hide from display)
+      await _firestoreService.updateGoalStatus(
+        goalId: goal.id,
+        status: 'completed',
+        completedAt: DateTime.now(),
+      );
+
+      // Show success message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('🎉 Goal "${goal.name}" completed! MYR ${goal.targetAmount.toStringAsFixed(2)} deducted.'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.green,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+
+      // ✅ 3. Refresh the goals list - goal will be hidden
+      setState(() {
+        _goalsRefreshKey++; // This will trigger FutureBuilder to rebuild
+        _cachedFilteredTransactions = null;
+        _cachedSummary = null;
+        _processingGoals.remove(goal.id); // ✅ Done processing
+      });
+    } catch (e) {
+      // ✅ Remove from processing on error
+      setState(() {
+        _processingGoals.remove(goal.id);
+      });
+      
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Row(
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text('Error completing goal: ${e.toString()}'),
+                ),
+              ],
+            ),
+            backgroundColor: Colors.red,
+            behavior: SnackBarBehavior.floating,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(10),
+            ),
+          ),
+        );
+      }
+    }
   }
 
   /// Navigate to Goal Detail page for viewing and editing

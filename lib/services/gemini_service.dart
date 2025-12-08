@@ -3,8 +3,8 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 class GeminiService {
   // ⚠️ IMPORTANT: Replace this with YOUR actual Gemini API key
   // Get your key from: https://makersuite.google.com/app/apikey
-  static const String _apiKey = 'AIzaSyBrPXLtKlsdBa_XVqI5QtfJPbTuzj1b3DA';
-  
+  static const String _apiKey = 'AIzaSyBBOzsQsUqh4e4QaSmFuDfQpuF9V4Ac2F0';
+
   late final GenerativeModel _model;
   bool _isInitialized = false;
 
@@ -18,7 +18,7 @@ class GeminiService {
           temperature: 0.7, // Controls creativity (0.0-1.0)
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 1024, // Maximum response length
+          maxOutputTokens: 300, // Maximum response length
         ),
         safetySettings: [
           SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium),
@@ -35,7 +35,7 @@ class GeminiService {
   /// Test if the API is working
   Future<bool> testConnection() async {
     if (!_isInitialized) return false;
-    
+
     try {
       final content = [Content.text('Say "Connected" if you can read this.')];
       final response = await _model.generateContent(content);
@@ -78,7 +78,7 @@ class GeminiService {
       return response.text!;
     } catch (e) {
       print('❌ Error getting financial advice: $e');
-      
+
       // Provide helpful error messages
       if (e.toString().contains('API key')) {
         return '⚠️ API Key Error: Please check your Gemini API key in gemini_service.dart';
@@ -93,7 +93,8 @@ class GeminiService {
   }
 
   /// Ask a specific financial question
-  Future<String> askQuestion(String question, {
+  Future<String> askQuestion(
+    String question, {
     double? totalIncome,
     double? totalExpenses,
   }) async {
@@ -171,8 +172,8 @@ class GeminiService {
     String? specificQuestion,
   }) {
     final balance = totalIncome - totalExpenses;
-    final savingsRate = totalIncome > 0 
-        ? ((balance / totalIncome) * 100).toStringAsFixed(1) 
+    final savingsRate = totalIncome > 0
+        ? ((balance / totalIncome) * 100).toStringAsFixed(1)
         : '0';
 
     // Find the highest spending category
@@ -208,16 +209,18 @@ You are an expert personal financial advisor specializing in helping young adult
     } else {
       final sortedCategories = categoryExpenses.entries.toList()
         ..sort((a, b) => b.value.compareTo(a.value));
-      
+
       for (var entry in sortedCategories) {
-        final percentage = totalExpenses > 0 
+        final percentage = totalExpenses > 0
             ? ((entry.value / totalExpenses) * 100).toStringAsFixed(1)
             : '0';
-        prompt += '- ${entry.key}: MYR ${entry.value.toStringAsFixed(2)} ($percentage%)\n';
+        prompt +=
+            '- ${entry.key}: MYR ${entry.value.toStringAsFixed(2)} ($percentage%)\n';
       }
     }
 
-    prompt += '\n🎯 HIGHEST SPENDING CATEGORY: $topCategory (MYR ${topAmount.toStringAsFixed(2)} - $topCategoryPercentage%)\n';
+    prompt +=
+        '\n🎯 HIGHEST SPENDING CATEGORY: $topCategory (MYR ${topAmount.toStringAsFixed(2)} - $topCategoryPercentage%)\n';
 
     if (specificQuestion != null && specificQuestion.isNotEmpty) {
       prompt += '\n❓ USER QUESTION: $specificQuestion\n';
@@ -231,17 +234,13 @@ You are an expert personal financial advisor specializing in helping young adult
    Assess their overall financial situation in 1-2 sentences. Be encouraging if they're doing well, or provide constructive feedback if improvements are needed.
 
 2. ⚠️ **Spending Alert** ${balance < 0 ? '(URGENT)' : ''}
-   ${balance < 0 
-       ? 'Address the overspending issue immediately with specific steps.'
-       : 'Identify the highest spending category and provide practical tips to optimize it (if needed).'}
+   ${balance < 0 ? 'Address the overspending issue immediately with specific steps.' : 'Identify the highest spending category and provide practical tips to optimize it (if needed).'}
 
 3. 💡 **Action Plan**
    Give ONE specific, actionable recommendation they can implement this week. Be very specific.
 
 4. 🎯 **Savings Strategy**
-   ${savingsRate.contains('-') || double.parse(savingsRate) < 10
-       ? 'Suggest a realistic savings goal based on their income and provide a simple strategy to achieve it.'
-       : 'Congratulate them on their savings rate and suggest how to optimize or invest these savings.'}
+   ${savingsRate.contains('-') || double.parse(savingsRate) < 10 ? 'Suggest a realistic savings goal based on their income and provide a simple strategy to achieve it.' : 'Congratulate them on their savings rate and suggest how to optimize or invest these savings.'}
 
 IMPORTANT GUIDELINES:
 - Keep each section brief (2-3 sentences maximum)
@@ -325,9 +324,7 @@ You are a financial advisor. Provide brief, specific advice for this spending si
 ⚠️ STATUS: $status
 
 Provide 2-3 specific, actionable tips to manage $category spending better. Focus on:
-${percentage >= 90 
-    ? '- Immediate actions to reduce spending'
-    : '- Ways to optimize spending in this category'}
+${percentage >= 90 ? '- Immediate actions to reduce spending' : '- Ways to optimize spending in this category'}
 - Practical alternatives or cost-saving strategies
 - One specific habit they should adopt
 

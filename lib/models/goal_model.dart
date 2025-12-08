@@ -11,6 +11,9 @@ class GoalModel {
   final double currentAmount;
   final DateTime createdAt;
   final String priority;
+  // ✅ ADD THESE TWO NEW FIELDS
+  final String status;              // NEW: 'active', 'completed', 'achieved', 'failed'
+  final DateTime? completedAt;      // NEW: When goal was completed
 
   GoalModel({
     required this.id,
@@ -23,6 +26,8 @@ class GoalModel {
     this.currentAmount = 0,
     required this.createdAt,
     this.priority = 'medium',
+    this.status = 'active',         // ✅ ADD THIS - Default to 'active'
+    this.completedAt,                // ✅ ADD THIS - Optional, null by default
   });
 
   Map<String, dynamic> toMap() {
@@ -36,6 +41,10 @@ class GoalModel {
       'currentAmount': currentAmount,
       'createdAt': Timestamp.fromDate(createdAt),
       'priority': priority,
+      'status': status,                                               // ✅ ADD THIS
+      'completedAt': completedAt != null                              // ✅ ADD THIS
+          ? Timestamp.fromDate(completedAt!) 
+          : null,
     };
   }
 
@@ -51,6 +60,10 @@ class GoalModel {
       currentAmount: (map['currentAmount'] ?? 0).toDouble(),
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       priority: map['priority'] ?? 'medium',
+      status: map['status'] ?? 'active',                              // ✅ ADD THIS
+      completedAt: map['completedAt'] != null                         // ✅ ADD THIS
+          ? (map['completedAt'] as Timestamp).toDate() 
+          : null,
     );
   }
 
@@ -94,6 +107,8 @@ class GoalModel {
       currentAmount: calculatedAmount,
       createdAt: createdAt,
       priority: priority,
+      status: status,                 // ✅ ADD THIS
+      completedAt: completedAt,       // ✅ ADD THIS
     );
   }
 
@@ -108,6 +123,8 @@ class GoalModel {
     double? currentAmount,
     DateTime? createdAt,
     String? priority,
+    String? status,                   // ✅ ADD THIS
+    DateTime? completedAt,            // ✅ ADD THIS
   }) {
     return GoalModel(
       id: id ?? this.id,
@@ -120,6 +137,8 @@ class GoalModel {
       currentAmount: currentAmount ?? this.currentAmount,
       createdAt: createdAt ?? this.createdAt,
       priority: priority ?? this.priority,
+      status: status ?? this.status,                     // ✅ ADD THIS
+      completedAt: completedAt ?? this.completedAt,     // ✅ ADD THIS
     );
   }
 }
