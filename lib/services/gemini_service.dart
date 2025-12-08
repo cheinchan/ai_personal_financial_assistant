@@ -3,7 +3,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 class GeminiService {
   // ⚠️ IMPORTANT: Replace this with YOUR actual Gemini API key
   // Get your key from: https://makersuite.google.com/app/apikey
-  static const String _apiKey = 'AIzaSyBBOzsQsUqh4e4QaSmFuDfQpuF9V4Ac2F0';
+  static const String _apiKey = 'AIzaSyAgP3hqwxjn9eNu3O8SIZLKjlckoYxbqaE';
 
   late final GenerativeModel _model;
   bool _isInitialized = false;
@@ -12,13 +12,13 @@ class GeminiService {
     try {
       // ✅ Use the correct model name: 'gemini-1.5-flash'
       _model = GenerativeModel(
-        model: 'gemini-2.0-flash', // This is the correct model name!
+        model: 'gemini-2.5-flash', // This is the correct model name!
         apiKey: _apiKey,
         generationConfig: GenerationConfig(
           temperature: 0.7, // Controls creativity (0.0-1.0)
           topK: 40,
           topP: 0.95,
-          maxOutputTokens: 300, // Maximum response length
+          maxOutputTokens: 1024, // Maximum response length
         ),
         safetySettings: [
           SafetySetting(HarmCategory.harassment, HarmBlockThreshold.medium),

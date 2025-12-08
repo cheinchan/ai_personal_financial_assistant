@@ -13,10 +13,13 @@ class FirestoreService {
 
   // ============ TRANSACTIONS ============
 
+
+
   Future<void> addTransaction(TransactionModel transaction) async {
     if (_userId == null) throw 'User not authenticated';
     await _db.collection('transactions').add(transaction.toMap());
   }
+  
 
   /// Calculate goal progress based on transactions between goal start and end dates
   /// Returns the net savings (income - expenses) for the goal period
