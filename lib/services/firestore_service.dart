@@ -13,13 +13,10 @@ class FirestoreService {
 
   // ============ TRANSACTIONS ============
 
-
-
   Future<void> addTransaction(TransactionModel transaction) async {
     if (_userId == null) throw 'User not authenticated';
     await _db.collection('transactions').add(transaction.toMap());
   }
-  
 
   /// Calculate goal progress based on transactions between goal start and end dates
   /// Returns the net savings (income - expenses) for the goal period
@@ -111,22 +108,28 @@ class FirestoreService {
   try {
     print('🎯 Fetching goals for user: $_userId');
 
+    // ✅ SIMPLIFIED QUERY - Remove status filter from Firestore
     final snapshot = await _db
         .collection('goals')
         .where('userId', isEqualTo: _userId)
-        .where('status', isNotEqualTo: 'completed')  // ✅ Filter out completed
-        .orderBy('status')  // ✅ Required when using isNotEqualTo
-        .orderBy('createdAt', descending: true)
+        .orderBy('createdAt', descending: true)  // Only order by createdAt
         .get();
 
-    print('📋 Found ${snapshot.docs.length} active goals');
+    print('📋 Found ${snapshot.docs.length} total goals');
 
     final goals = snapshot.docs
         .map((doc) => GoalModel.fromMap(doc.id, doc.data()))
         .toList();
 
+    // ✅ Filter out completed goals IN DART CODE (not in Firestore query)
+    final activeGoals = goals
+        .where((goal) => goal.status != 'completed')
+        .toList();
+
+    print('✅ Active goals after filtering: ${activeGoals.length}');
+
     final goalsWithProgress = <GoalModel>[];
-    for (var goal in goals) {
+    for (var goal in activeGoals) {
       print('\n🎯 Processing goal: ${goal.name}');
       final calculatedAmount = await calculateGoalProgress(goal);
       print('✅ Calculated amount: MYR $calculatedAmount\n');

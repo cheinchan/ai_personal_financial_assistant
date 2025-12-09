@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../services/notification_service.dart';  // ✅ ADD THIS
 import 'sign_in_page.dart';
 import 'edit_profile_page.dart';
 import 'change_password_page.dart';
 import 'help_page.dart';
+import 'notifications_page.dart';  // ✅ ADD THIS
+
 
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
@@ -14,6 +17,7 @@ class ProfilePage extends StatefulWidget {
 
 class _ProfilePageState extends State<ProfilePage> {
   final _authService = AuthService();
+  final _notificationService = NotificationService();  // ✅ ADD THIS
 
   @override
   Widget build(BuildContext context) {
@@ -32,6 +36,62 @@ class _ProfilePageState extends State<ProfilePage> {
             fontWeight: FontWeight.w600,
           ),
         ),
+        // ✅ ADD THIS - Notification Bell Icon
+        actions: [
+          IconButton(
+            icon: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                const Icon(Icons.notifications_outlined, color: Colors.white, size: 28),
+                // Notification Badge
+                Positioned(
+                  right: 0,
+                  top: 0,
+                  child: StreamBuilder<int>(
+                    stream: Stream.periodic(const Duration(seconds: 1), (_) {
+                      return _notificationService.getUnreadCount();
+                    }),
+                    builder: (context, snapshot) {
+                      final count = snapshot.data ?? 0;
+                      if (count == 0) return const SizedBox.shrink();
+                      
+                      return Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.red,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.white, width: 1.5),
+                        ),
+                        constraints: const BoxConstraints(
+                          minWidth: 18,
+                          minHeight: 18,
+                        ),
+                        child: Text(
+                          count > 9 ? '9+' : count.toString(),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const NotificationsPage(),
+                ),
+              );
+            },
+          ),
+          const SizedBox(width: 8),
+        ],
       ),
       body: SingleChildScrollView(
         child: Column(
@@ -45,6 +105,20 @@ class _ProfilePageState extends State<ProfilePage> {
             _buildSection(
               'Profile Settings',
               [
+                // ✅ ADD THIS - Notifications Menu Item
+                _buildMenuItem(
+                  Icons.notifications_outlined,
+                  'Notifications',
+                  'View budget alerts and goal updates',
+                  () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (context) => const NotificationsPage(),
+                      ),
+                    );
+                  },
+                  showBadge: _notificationService.getUnreadCount() > 0,
+                ),
                 _buildMenuItem(
                   Icons.person_outline,
                   'Edit Profile',
@@ -130,6 +204,7 @@ class _ProfilePageState extends State<ProfilePage> {
     final initials = email.isNotEmpty 
         ? email.substring(0, 1).toUpperCase() 
         : 'U';
+        
 
     return Container(
       width: double.infinity,
@@ -230,12 +305,14 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  // ✅ UPDATED - Added showBadge parameter
   Widget _buildMenuItem(
     IconData icon,
     String title,
     String subtitle,
-    VoidCallback onTap,
-  ) {
+    VoidCallback onTap, {
+    bool showBadge = false,  // ✅ ADD THIS parameter
+  }) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
@@ -251,10 +328,30 @@ class _ProfilePageState extends State<ProfilePage> {
                   color: const Color(0xFF2D9B8E).withOpacity(0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(
-                  icon,
-                  color: const Color(0xFF2D9B8E),
-                  size: 24,
+                child: Stack(
+                  clipBehavior: Clip.none,
+                  children: [
+                    Icon(
+                      icon,
+                      color: const Color(0xFF2D9B8E),
+                      size: 24,
+                    ),
+                    // ✅ ADD THIS - Badge indicator
+                    if (showBadge)
+                      Positioned(
+                        right: -4,
+                        top: -4,
+                        child: Container(
+                          width: 10,
+                          height: 10,
+                          decoration: BoxDecoration(
+                            color: Colors.red,
+                            shape: BoxShape.circle,
+                            border: Border.all(color: Colors.white, width: 1.5),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
               const SizedBox(width: 16),

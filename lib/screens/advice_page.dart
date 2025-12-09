@@ -257,7 +257,7 @@ class _AdvicePageState extends State<AdvicePage> {
                   _buildFinancialAssistantCard(),
                   const SizedBox(height: 20),
 
-                  // Insight Section
+                  // // Insight Section
                   _buildInsightSection(),
                   const SizedBox(height: 20),
 

@@ -6,6 +6,7 @@ import '../models/transaction_model.dart';
 import '../models/goal_model.dart';
 import 'report_page.dart';
 import 'goal_detail_page.dart';
+import '../services/notification_service.dart'; 
 
 /// Feature 5: Visual Dashboards and Analytics
 /// 
@@ -73,12 +74,51 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
           ),
         ),
         actions: [
-          // AI-driven notifications indicator
-          IconButton(
-            icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
-            onPressed: _showAINotifications,
-          ),
-        ],
+  // ✅ Enhanced notification button with badge
+  Stack(
+    children: [
+      IconButton(
+        icon: const Icon(Icons.notifications_outlined, color: Colors.black87),
+        onPressed: _showAINotifications,
+      ),
+      // Notification badge
+      Positioned(
+        right: 8,
+        top: 8,
+        child: StreamBuilder<int>(
+          stream: Stream.periodic(const Duration(seconds: 1), (_) {
+            return NotificationService().getUnreadCount();
+          }),
+          builder: (context, snapshot) {
+            final unreadCount = snapshot.data ?? 0;
+            if (unreadCount == 0) return const SizedBox.shrink();
+            
+            return Container(
+              padding: const EdgeInsets.all(4),
+              decoration: const BoxDecoration(
+                color: Colors.red,
+                shape: BoxShape.circle,
+              ),
+              constraints: const BoxConstraints(
+                minWidth: 16,
+                minHeight: 16,
+              ),
+              child: Text(
+                unreadCount > 9 ? '9+' : '$unreadCount',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.bold,
+                ),
+                textAlign: TextAlign.center,
+              ),
+            );
+          },
+        ),
+      ),
+    ],
+  ),
+],
       ),
       body: StreamBuilder<List<TransactionModel>>(
         stream: _firestoreService.getTransactions(),
@@ -1398,24 +1438,27 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
       // Show loading indicator
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Row(
-              children: [
-                SizedBox(
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                  ),
-                ),
-                SizedBox(width: 12),
-                Text('Completing goal...'),
-              ],
-            ),
-            duration: Duration(seconds: 2),
+  SnackBar(
+    content: Row(
+      children: [
+        const Icon(Icons.celebration, color: Colors.white, size: 28),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Text(
+            '🎉 Goal "${goal.name}" completed! Check notifications for your achievement!',
+            style: const TextStyle(fontSize: 15),
           ),
-        );
+        ),
+      ],
+    ),
+    backgroundColor: Colors.green,
+    behavior: SnackBarBehavior.floating,
+    shape: RoundedRectangleBorder(
+      borderRadius: BorderRadius.circular(10),
+    ),
+    duration: const Duration(seconds: 4),
+  ),
+);
       }
 
       // ✅ 1. Create expense transaction to deduct ONLY the target amount
@@ -1437,6 +1480,13 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
         status: 'completed',
         completedAt: DateTime.now(),
       );
+
+      await NotificationService().sendGoalCompleted(
+  goalName: goal.name,
+  amount: goal.targetAmount,
+  daysToComplete: DateTime.now().difference(goal.startDate).inDays,
+  category: goal.category,
+);
 
       // Show success message
       if (mounted) {
@@ -1605,49 +1655,156 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   /// Feature 4: AI-Driven Notifications
   /// Shows alerts and suggestions based on spending patterns
   void _showAINotifications() {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.lightbulb_outline, color: Color(0xFF2D9B8E)),
-            SizedBox(width: 8),
-            Text('AI Insights'),
-          ],
-        ),
-        content: const Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Feature 4: AI-Driven Advice',
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                color: Color(0xFF2D9B8E),
-              ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              'This feature will provide:\n'
-              '• Personalized financial insights\n'
-              '• Spending limit alerts\n'
-              '• Suggestions based on past behavior\n'
-              '• Pattern detection\n'
-              '• Alternative behavior recommendations',
-              style: TextStyle(fontSize: 14),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Got it'),
+  final notifications = NotificationService().getNotifications();
+  
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      title: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.notifications_active, color: Color(0xFF2D9B8E)),
+              SizedBox(width: 8),
+              Text('Notifications'),
+            ],
           ),
+          if (notifications.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                NotificationService().markAllAsRead();
+                Navigator.pop(context);
+                setState(() {}); // Refresh to update badge
+              },
+              child: const Text('Mark all read', style: TextStyle(fontSize: 12)),
+            ),
         ],
       ),
-    );
+      content: SizedBox(
+        width: double.maxFinite,
+        height: 400,
+        child: notifications.isEmpty
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.notifications_none, size: 64, color: Colors.grey),
+                    SizedBox(height: 16),
+                    Text('No notifications yet', style: TextStyle(color: Colors.grey)),
+                  ],
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                itemCount: notifications.length,
+                itemBuilder: (context, index) {
+                  final notification = notifications[index];
+                  final isGoalComplete = notification.title.contains('CONGRATULATIONS');
+                  
+                  return Card(
+                    color: notification.isRead 
+                        ? Colors.white 
+                        : const Color(0xFF2D9B8E).withOpacity(0.05),
+                    child: ListTile(
+                      leading: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: isGoalComplete
+                              ? Colors.green.withOpacity(0.2)
+                              : notification.type == 'goal' 
+                                  ? const Color(0xFF2D9B8E).withOpacity(0.1)
+                                  : Colors.orange.withOpacity(0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          isGoalComplete
+                              ? Icons.celebration
+                              : notification.type == 'goal' 
+                                  ? Icons.flag 
+                                  : Icons.account_balance_wallet,
+                          color: isGoalComplete
+                              ? Colors.green
+                              : notification.type == 'goal'
+                                  ? const Color(0xFF2D9B8E)
+                                  : Colors.orange,
+                          size: 24,
+                        ),
+                      ),
+                      title: Text(
+                        notification.title,
+                        style: TextStyle(
+                          fontWeight: notification.isRead 
+                              ? FontWeight.w500 
+                              : FontWeight.bold,
+                          fontSize: 13,
+                        ),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          Text(
+                            notification.message,
+                            style: const TextStyle(fontSize: 12),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            _formatTimestamp(notification.timestamp),
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                      ),
+                      isThreeLine: true,
+                      onTap: () {
+                        NotificationService().markAsRead(notification.id);
+                        setState(() {}); // Refresh to update badge
+                      },
+                    ),
+                  );
+                },
+              ),
+      ),
+      actions: [
+        if (notifications.isNotEmpty)
+          TextButton(
+            onPressed: () {
+              NotificationService().clearAll();
+              Navigator.pop(context);
+              setState(() {}); // Refresh to update badge
+            },
+            child: const Text('Clear all', style: TextStyle(color: Colors.red)),
+          ),
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Close'),
+        ),
+      ],
+    ),
+  );
+}
+
+// ✅ ADD THIS HELPER METHOD right after _showAINotifications
+String _formatTimestamp(DateTime timestamp) {
+  final now = DateTime.now();
+  final difference = now.difference(timestamp);
+  
+  if (difference.inMinutes < 1) {
+    return 'Just now';
+  } else if (difference.inHours < 1) {
+    return '${difference.inMinutes}m ago';
+  } else if (difference.inDays < 1) {
+    return '${difference.inHours}h ago';
+  } else if (difference.inDays < 7) {
+    return '${difference.inDays}d ago';
+  } else {
+    return DateFormat('MMM d').format(timestamp);
   }
+}
 
   /// Navigate to Report Page with date picker
   void _showDatePickerForReport() async {

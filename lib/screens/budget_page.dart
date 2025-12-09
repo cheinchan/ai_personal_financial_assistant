@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/auth_service.dart';
 import '../services/firestore_service.dart';
+import '../services/notification_service.dart';  // ✅ ADD THIS
 import '../models/budget_model.dart';
 import '../models/transaction_model.dart';
 import 'add_budget_page.dart';
@@ -17,6 +18,7 @@ class BudgetPage extends StatefulWidget {
 class _BudgetPageState extends State<BudgetPage> {
   final _authService = AuthService();
   final _firestoreService = FirestoreService();
+  final _notificationService = NotificationService();  // ✅ ADD THIS
   bool _showAll = false;
 
   @override
@@ -532,7 +534,7 @@ class _BudgetPageState extends State<BudgetPage> {
     );
   }
 
-  // Check for budget alerts
+  // ✅ UPDATED: Check for budget alerts AND send notifications
   List<Map<String, dynamic>> _checkBudgetAlerts(
     List<BudgetModel> budgets,
     List<TransactionModel> transactions,
@@ -550,28 +552,53 @@ class _BudgetPageState extends State<BudgetPage> {
       }
 
       final percentage = (spent / budget.amount * 100);
+      final budgetName = budget.name ?? budget.categories.first;
 
+      // ✅ SEND NOTIFICATIONS based on thresholds
       if (percentage >= 100) {
         alerts.add({
           'type': 'critical',
           'budget': budget,
           'percentage': percentage.toInt(),
-          'message': 'You\'ve exceeded your ${budget.name ?? budget.categories.first} budget!',
+          'message': 'You\'ve exceeded your $budgetName budget!',
         });
+        
+        // ✅ Send exceeded notification
+        _notificationService.sendBudgetExceeded(
+          budgetName: budgetName,
+          spent: spent,
+          limit: budget.amount,
+        );
       } else if (percentage >= 90) {
         alerts.add({
           'type': 'warning',
           'budget': budget,
           'percentage': percentage.toInt(),
-          'message': 'Only ${(budget.amount - spent).toInt()} MYR left in ${budget.name ?? budget.categories.first}',
+          'message': 'Only ${(budget.amount - spent).toInt()} MYR left in $budgetName',
         });
+        
+        // ✅ Send critical notification
+        _notificationService.sendBudgetCritical(
+          budgetName: budgetName,
+          spent: spent,
+          limit: budget.amount,
+          percentage: percentage.toInt(),
+        );
       } else if (percentage >= 70) {
         alerts.add({
           'type': 'info',
           'budget': budget,
           'percentage': percentage.toInt(),
-          'message': '${budget.name ?? budget.categories.first} is at $percentage%',
+          'message': '$budgetName is at ${percentage.toInt()}%',
         });
+        
+        // ✅ Send warning notification
+        _notificationService.sendBudgetWarning(
+          budgetName: budgetName,
+          spent: spent,
+          limit: budget.amount,
+          percentage: percentage.toInt(),
+        );
       }
     }
 

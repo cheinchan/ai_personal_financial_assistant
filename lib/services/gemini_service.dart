@@ -3,7 +3,7 @@ import 'package:google_generative_ai/google_generative_ai.dart';
 class GeminiService {
   // ⚠️ IMPORTANT: Replace this with YOUR actual Gemini API key
   // Get your key from: https://makersuite.google.com/app/apikey
-  static const String _apiKey = 'AIzaSyAgP3hqwxjn9eNu3O8SIZLKjlckoYxbqaE';
+  static const String _apiKey = 'AIzaSyAhAezMS7CB6cWrM1FqWj5dX0JqXU2ZlvE';
 
   late final GenerativeModel _model;
   bool _isInitialized = false;
