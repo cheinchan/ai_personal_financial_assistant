@@ -292,7 +292,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
   /// Feature 2: Automated Financial Summary Display
   /// Shows income, expenditure, and savings with rule-based insights
   Widget _buildAutomatedFinancialSummary(Map<String, double> summary) {
-    final currencyFormat = NumberFormat.currency(symbol: '\$', decimalDigits: 2);
+    final currencyFormat = NumberFormat.currency(symbol: 'RM', decimalDigits: 2);
     
     final income = summary['income'] ?? 0;
     final expense = summary['expense'] ?? 0;
@@ -694,7 +694,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               Expanded(
                 child: _buildCashFlowCard(
                   'Income',
-                  '\$${income.toInt()}',
+                  'RM${income.toInt()}',
                   Icons.arrow_downward,
                   const Color(0xFF2D9B8E),
                 ),
@@ -703,7 +703,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
               Expanded(
                 child: _buildCashFlowCard(
                   'Expense',
-                  '\$${expense.toInt()}',
+                  'RM${expense.toInt()}',
                   Icons.arrow_upward,
                   const Color(0xFF2D9B8E),
                 ),
@@ -837,7 +837,7 @@ class _DashboardPageState extends State<DashboardPage> with SingleTickerProvider
             ),
           ),
           Text(
-            '${transaction.type == 'expense' ? '-' : '+'}\$${transaction.amount.toInt()}',
+            '${transaction.type == 'expense' ? '-' : '+'}RM${transaction.amount.toInt()}',
             style: TextStyle(
               fontSize: 14,
               fontWeight: FontWeight.w600,
